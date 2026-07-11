@@ -201,8 +201,12 @@ The phone-to-bike rotation matrix is solved in Python from tagged segments. The 
 provides guided tagging that inserts `calib_start`/`calib_end` markers — **hands-free**
 (ADR 0003): the rider presses one button while stationary; every later phase transition
 (still → hard accel → hard brake) is detected from GPS speed with simple thresholds
-(constants in `Config.kt`) and announced with a beep. The rider never touches or looks at
-the phone while the bike is moving. `calib_start` markers are backdated 2 s to cover the
+(constants in `Config.kt`) and announced with a beep **and a full-screen color cue**
+(blue = hold still, green = accelerate, orange = brake, red flash = retry, dark green =
+done; the screen is forced on at full brightness for the duration of the run, since
+engine/wind noise often masks the speaker). The rider never touches the phone while the
+bike is moving and only needs a peripheral glance at the screen color, never a read.
+`calib_start` markers are backdated 2 s to cover the
 1 Hz detection latency; markers only need to *bracket* the maneuvers — the offline solver
 extracts exact segments. This is UI guidance logic only, not on-device fusion.
 
@@ -236,7 +240,9 @@ Single screen, Compose:
   elapsed time, file size.
 - **Marker** button (full-width, high contrast).
 - **Calibrate** — one start/cancel button; the hands-free flow of §7 runs on its own,
-  showing the current instruction and beeping on every phase transition.
+  beeping on every phase transition and taking over the whole screen with one solid
+  color + one huge word per phase (readable at a glance, §7). Screen kept on at full
+  brightness only while calibration runs.
 - Ride list: closed rides with size/duration, share + delete actions.
 
 No settings screen in MVP. Constants live in one `Config.kt`.

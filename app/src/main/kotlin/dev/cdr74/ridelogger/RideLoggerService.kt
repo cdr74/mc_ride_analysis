@@ -120,12 +120,15 @@ class RideLoggerService : Service() {
         val rawSupported = gps.start()
         store.putMeta("gnss_raw_supported", rawSupported.toString())
 
-        // Audible phase cues: the rider must never need to look at (or touch) the screen
-        // during calibration maneuvers (ADR 0003).
+        // Audible phase cues: the rider must never need to touch the screen during
+        // calibration maneuvers (ADR 0003). Beeps are often inaudible over engine/wind,
+        // so the UI mirrors every phase as a full-screen color cue — pushed here
+        // immediately, the 1 Hz status tick is too slow for that.
         tone = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
         scope.launch {
             var prev = CalibrationGuide.Phase.IDLE
             calib.phase.collect { p ->
+                status.value = status.value.copy(calib = p)
                 when {
                     p == prev -> Unit
                     p == CalibrationGuide.Phase.DONE ->

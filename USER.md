@@ -97,21 +97,36 @@ The calibration and all offline analysis assume the mount from `DESIGN.md` §7:
 
 The phone→bike orientation is re-solved offline from tagged ride segments. The app tags
 them for you: **you press one button while stopped, then never touch the phone again** —
-each phase is detected automatically from GPS speed, and the app **beeps** at every
-transition so you never need to look at the screen.
+each phase is detected automatically from GPS speed. The app signals every transition
+two ways:
+
+- **Screen color (primary):** during calibration the screen stays on at full brightness
+  and shows **one solid color per phase** — you read it from the corner of your eye,
+  never stare at it:
+
+  | Color | Meaning |
+  |---|---|
+  | 🟦 Blue — HOLD STILL | stay stopped, bars straight |
+  | 🟩 Green — ACCELERATE | when safe: hard, straight-line acceleration |
+  | 🟧 Orange — BRAKE | when safe: firm, straight-line braking |
+  | 🟥 Red flash — AGAIN | that attempt didn't count; it retries by itself |
+  | ✅ Dark green — DONE | calibration complete, screen returns to normal |
+
+- **Beeps (backup):** the same transitions also beep on the media stream — useful with
+  helmet speakers, usually inaudible from the phone itself over engine/wind noise.
 
 > **Bars DEAD STRAIGHT throughout.** The phone sits on the steering assembly: if the
 > bars are turned, the calibration is garbage. Front wheel aligned with the frame.
 
 1. Stopped, upright (held vertical or center stand — not the side stand), bars straight:
-   tap **START CALIBRATION**.
-2. **Hold still.** After a moment the app starts a 10 s measurement — *beep* when done.
-   (If you move too early you hear a low buzz and it simply restarts — just hold still
-   again.)
+   tap **START CALIBRATION**. The screen turns **blue**.
+2. **Hold still.** After a moment the app starts a 10 s measurement — screen turns
+   **green** when done. (If you move too early it flashes **red** and simply restarts —
+   just hold still until it goes green.)
 3. Ride off whenever it's safe and **accelerate hard in a straight line** for ~5 s.
-   The app detects the launch by itself — *beep* when captured.
+   The app detects the launch by itself — screen turns **orange** when captured.
 4. When safe, **brake firmly in a straight line** (to a stop or near-stop) —
-   *beep-beep*: calibration complete.
+   **dark green ✓**: calibration complete, the normal screen comes back by itself.
 
 There is no time pressure between phases: cruise as long as you like before the
 acceleration or the braking — the app waits. Detection only needs to roughly bracket the
@@ -187,8 +202,9 @@ next ride. The file format itself is documented in `analysis/schema.md`.
 |---|---|
 | Accel/gyro stuck near 200 Hz, in-app warning shown | System mic privacy toggle is OFF — turn microphone access on (§1.4) and restart the ride |
 | "GPS: no fix" for minutes | Be outdoors with sky view; confirm Location permission is *Precise*; first fix after a long time can take a minute |
-| Calibration stuck at "Hold still" | Phase detection runs on GPS speed — wait until the status card shows a GPS fix before starting calibration |
-| No beep at a calibration transition | Check media volume; the cues play on the media stream (helmet speakers / earbuds work) |
+| Calibration stuck on blue "HOLD STILL" | Phase detection runs on GPS speed — wait until the status card shows a GPS fix before starting calibration |
+| No beep at a calibration transition | Normal on the bike — follow the screen colors instead; beeps play on the media stream (helmet speakers / earbuds work) |
+| Screen dark during calibration | Should not happen — the app forces the screen on at full brightness while calibrating. If it does, tap the power button once and file an issue |
 | Rates drop during a long hot ride | Thermal throttling — expected on hot days; the gap analysis in the validator will show it. Shade the phone if possible |
 | Dropped events > 0 | Should not happen at MVP write rates — validate the ride; if it recurs, note phone temperature and file an issue |
 | Ride missing from the list after a crash | The service never resumes a file after a kill; the file is still in the list (or on disk under `Android/data` files/rides) and readable — validator will report it as crash-terminated |

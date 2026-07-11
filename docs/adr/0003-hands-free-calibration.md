@@ -10,6 +10,16 @@ and inserts the same `calib_start`/`calib_end` markers. Phase transitions are an
 with `ToneGenerator` beeps (distinct low buzz on retry) so the rider never looks at the
 screen; instructions are also shown live in the UI for the stationary parts.
 
+**Addendum 2026-07-11 — visual cues (v0.2.1):** beeps alone proved insufficient — the
+phone is inaudible over engine/wind noise on the bike. While a calibration run is active
+the UI takes over the whole screen with one solid color + one huge word per phase
+(blue = hold still, green = accelerate, orange = brake, 1.5 s red flash = retry,
+dark green ✓ = done, auto-dismissed after 4 s) and forces the screen on at full
+brightness for the duration of the run only. This keeps the hands-free property: the
+color is readable from peripheral vision, no reading or staring required. Beeps are kept
+as a redundant channel (helmet speakers). The service pushes phase changes to the UI
+`StateFlow` immediately (the 1 Hz status tick is too slow for glanceable cues).
+
 Decisions and boundaries:
 
 - **GPS speed only, no IMU logic:** simplest robust signal, orientation-independent, and it

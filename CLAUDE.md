@@ -64,7 +64,7 @@ releases debug-signed from the same machine so upgrades keep installing over eac
 
 ```
 app/src/main/kotlin/dev/cdr74/ridelogger/
-  MainActivity.kt          # Compose UI: start/stop, status, marker, calibration card
+  MainActivity.kt          # Compose UI: start/stop, status, marker, calib card + full-screen calib color overlay
   RideLoggerService.kt     # foreground service; owns session lifecycle
   SensorPipeline.kt        # SensorManager registration, HandlerThread → ring buffer
   GpsPipeline.kt           # fused location + GNSS status logging
