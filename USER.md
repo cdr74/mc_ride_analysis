@@ -8,36 +8,41 @@ Target device: Google Pixel 8 (works on any Android 10+ phone, but the field che
 
 ## 1. Install the app
 
-### 1.1 Build the APK
+You do **not** build anything. Ready-made APKs are published as GitHub releases.
 
-On the workstation (JDK 17+ and Android SDK Platform 35 required; `local.properties` must
-point at the SDK):
+### 1.1 Download the APK
+
+On the **phone's browser**, open:
+
+> **https://github.com/cdr74/mc_ride_analysis/releases/latest**
+
+and download the `ridelogger-<version>.apk` asset. (You can also download it on the PC
+and transfer it to the phone via Drive or USB — but downloading directly on the phone is
+the shortest path.)
+
+### 1.2 Install (sideload)
+
+1. Open the downloaded APK from the browser's download notification or the **Files** app.
+2. Android asks to allow "install unknown apps" for that app the first time — allow it.
+3. If **Play Protect** warns about an unknown developer, choose *Install anyway* — the
+   APK comes from this repo's releases, there is no Play Store listing for a throwaway
+   research app.
+
+**Updating to a newer release:** install the new APK over the old one; rides are kept.
+If Android ever refuses with a signature error, **export all rides first** (§4) — 
+uninstalling deletes the app's private storage including any rides not yet exported.
+
+### 1.3 Alternative for developers: install from source
+
+Only needed if you are changing the app. With JDK 17+, Android SDK 35 and USB debugging
+enabled on the phone:
 
 ```bash
-./gradlew assembleDebug
-# APK lands in app/build/outputs/apk/debug/app-debug.apk
+./gradlew installDebug     # or: adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### 1.2 Prepare the phone
-
-1. **Enable Developer options:** Settings → About phone → tap *Build number* 7 times.
-2. **Enable USB debugging:** Settings → System → Developer options → *USB debugging*.
-3. Connect the phone via USB and accept the "Allow USB debugging?" prompt.
-
-### 1.3 Install
-
-With the phone connected:
-
-```bash
-./gradlew installDebug          # or: adb install app/build/outputs/apk/debug/app-debug.apk
-```
-
-**WSL note:** WSL2 cannot see USB devices directly. Either run adb from Windows, or use adb
-over Wi-Fi: on the phone enable *Wireless debugging* (Developer options), then
-`adb pair <ip>:<port>` + `adb connect <ip>:<port>` from WSL.
-
-Alternatively, skip adb entirely: copy `app-debug.apk` to the phone (Drive, USB file
-transfer), open it in the Files app and allow "install unknown apps" when prompted.
+WSL2 has no USB passthrough — use adb over Wi-Fi (*Wireless debugging* in Developer
+options, then `adb pair` + `adb connect`) or run adb from Windows.
 
 ### 1.4 First launch — permissions and settings
 

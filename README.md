@@ -12,13 +12,31 @@ sensor-fusion development in Python. See `DESIGN.md` for the authoritative spec 
 - `analysis/validate_ride.py` — ride-file validation (gaps, monotonicity, meta, drops)
 - `docs/adr/` — decision notes when code diverges from the spec
 
-## Build
+## Get the app
+
+Users install the prebuilt APK from the [latest GitHub release](https://github.com/cdr74/mc_ride_analysis/releases/latest)
+— no toolchain needed. Full install/calibration/usage instructions in `USER.md`.
+
+## Develop
 
 ```bash
 ./gradlew assembleDebug          # build APK
 ./gradlew installDebug           # install on connected device
 ./gradlew lint testDebugUnitTest # static checks + unit tests
 ```
+
+## Cut a release
+
+Bump `versionCode`/`versionName` in `app/build.gradle.kts`, then:
+
+```bash
+./gradlew testDebugUnitTest assembleDebug
+cp app/build/outputs/apk/debug/app-debug.apk ridelogger-<version>.apk
+gh release create v<version> ridelogger-<version>.apk --title "RideLogger <version>" --notes "..."
+```
+
+Releases ship the debug-signed APK (MVP; no Play signing). Build releases from the same
+machine so the debug keystore — and thus the APK signature — stays stable across updates.
 
 ## Validate an exported ride
 

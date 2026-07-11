@@ -55,6 +55,11 @@ These are the reasons this app exists. Violating any of them makes collected rid
 adb shell dumpsys sensorservice  # inspect delivered sensor rates on device
 ```
 
+**Distribution:** users install the prebuilt APK from GitHub releases, they never build.
+After bumping `versionCode`/`versionName`, run tests + `assembleDebug` and publish with
+`gh release create v<version> ridelogger-<version>.apk` (process in README.md). Keep
+releases debug-signed from the same machine so upgrades keep installing over each other.
+
 ## Architecture map (details in design.md)
 
 ```
