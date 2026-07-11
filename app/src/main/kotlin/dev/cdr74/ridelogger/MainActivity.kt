@@ -269,10 +269,10 @@ private fun CalibrationCard(status: SessionStatus) {
             Text("Calibration", style = MaterialTheme.typography.titleMedium)
             Text(
                 "Hands-free: start it once while stopped, then just ride — the app detects " +
-                    "each phase (hold still 10 s → hard accel → hard brake). The screen stays " +
-                    "on and shows one color per phase: BLUE hold still, GREEN accelerate, " +
-                    "ORANGE brake, red flash = retry. Beeps too, if you can hear them. " +
-                    "Bars DEAD STRAIGHT throughout. No buttons while moving.",
+                    "each phase (hold still 10 s → brisk accel → firm brake, released while " +
+                    "still rolling). The screen stays on and shows one color per phase: BLUE " +
+                    "hold still, GREEN accelerate, ORANGE brake, red flash = retry. Beeps too, " +
+                    "if you can hear them. Bars DEAD STRAIGHT throughout. No buttons while moving.",
                 style = MaterialTheme.typography.bodySmall,
             )
             if (phase != CalibrationGuide.Phase.IDLE) {
@@ -322,13 +322,13 @@ private fun calibCue(phase: CalibrationGuide.Phase): CalibCue = when (phase) {
     CalibrationGuide.Phase.STATIC ->
         CalibCue(Color(0xFF1565C0), "HOLD STILL", "Measuring — about 10 s", true)
     CalibrationGuide.Phase.WAIT_ACCEL ->
-        CalibCue(Color(0xFF2E7D32), "ACCELERATE", "Hard · dead straight · when safe — no rush", false)
+        CalibCue(Color(0xFF2E7D32), "ACCELERATE", "Brisk, not full throttle · dead straight · when safe — no rush", false)
     CalibrationGuide.Phase.ACCEL ->
         CalibCue(Color(0xFF2E7D32), "KEEP GOING", "Dead straight", true)
     CalibrationGuide.Phase.WAIT_BRAKE ->
-        CalibCue(Color(0xFFE65100), "BRAKE", "Firmly · dead straight · when safe — no rush", false)
+        CalibCue(Color(0xFFE65100), "BRAKE", "Firmly · dead straight · when safe · release while still rolling", false)
     CalibrationGuide.Phase.BRAKE ->
-        CalibCue(Color(0xFFE65100), "KEEP BRAKING", "Dead straight", true)
+        CalibCue(Color(0xFFE65100), "KEEP BRAKING", "Dead straight · don't brake to a standstill", true)
     CalibrationGuide.Phase.DONE ->
         CalibCue(Color(0xFF1B5E20), "DONE ✓", "Calibration complete", false)
     CalibrationGuide.Phase.IDLE -> CalibCue(Color.Black, "", "", false)

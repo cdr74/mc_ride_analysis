@@ -107,8 +107,8 @@ two ways:
   | Color | Meaning |
   |---|---|
   | 🟦 Blue — HOLD STILL | stay stopped, bars straight |
-  | 🟩 Green — ACCELERATE | when safe: hard, straight-line acceleration |
-  | 🟧 Orange — BRAKE | when safe: firm, straight-line braking |
+  | 🟩 Green — ACCELERATE | when safe: brisk, straight-line acceleration (moderate is enough) |
+  | 🟧 Orange — BRAKE | when safe: firm, straight-line braking — release while still rolling |
   | 🟥 Red flash — AGAIN | that attempt didn't count; it retries by itself |
   | ✅ Dark green — DONE | calibration complete, screen returns to normal |
 
@@ -123,10 +123,17 @@ two ways:
 2. **Hold still.** After a moment the app starts a 10 s measurement — screen turns
    **green** when done. (If you move too early it flashes **red** and simply restarts —
    just hold still until it goes green.)
-3. Ride off whenever it's safe and **accelerate hard in a straight line** for ~5 s.
-   The app detects the launch by itself — screen turns **orange** when captured.
-4. When safe, **brake firmly in a straight line** (to a stop or near-stop) —
-   **dark green ✓**: calibration complete, the normal screen comes back by itself.
+3. Ride off whenever it's safe and **accelerate briskly in a straight line** for ~5 s.
+   **Moderate acceleration is enough** (roughly 0→50 km/h in 5 s) — no full throttle
+   needed; steady and dead straight matters more than strong. The app detects the
+   launch by itself — screen turns **orange** when captured.
+4. When safe, **brake firmly in a straight line, then release the brakes while still
+   rolling** — do **not** brake all the way to a standstill: in the last moment of a
+   full stop the bars typically get turned to put a foot down, and turned bars corrupt
+   the measurement (the phone sits on the steering assembly). Releasing at rolling
+   speed ends the capture cleanly — **dark green ✓**: calibration complete, the normal
+   screen comes back by itself. (If you do end up stopping, don't worry — the analysis
+   trims the below-walking-speed tail.)
 
 There is no time pressure between phases: cruise as long as you like before the
 acceleration or the braking — the app waits. Detection only needs to roughly bracket the

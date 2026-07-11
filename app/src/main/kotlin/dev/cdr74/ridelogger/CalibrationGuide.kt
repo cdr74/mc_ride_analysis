@@ -21,10 +21,10 @@ class CalibrationGuide(private val insertMarker: (tNs: Long, kind: String, note:
         IDLE(""),
         WAIT_STATIC("Stop the bike. Bars dead straight. Hold still."),
         STATIC("Hold still — measuring for 10 s…"),
-        WAIT_ACCEL("Static done ✓ — when safe, accelerate HARD in a straight line."),
+        WAIT_ACCEL("Static done ✓ — when safe, accelerate briskly in a straight line (moderate is enough)."),
         ACCEL("Keep accelerating, dead straight…"),
-        WAIT_BRAKE("Acceleration captured ✓ — when safe, brake firmly in a straight line."),
-        BRAKE("Keep braking, dead straight…"),
+        WAIT_BRAKE("Acceleration captured ✓ — when safe, brake firmly in a straight line, release while still rolling."),
+        BRAKE("Keep braking, dead straight — release while still rolling…"),
         DONE("Calibration complete ✓"),
     }
 

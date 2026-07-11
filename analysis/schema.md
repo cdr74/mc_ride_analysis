@@ -47,6 +47,10 @@ CREATE TABLE marker (
 - Aborted holds / false starts produce **short balanced segments**; the solver must filter
   segments by minimum duration (static ≥ 8 s, accel/brake ≥ 2 s) and prefer the last
   complete set in the ride.
+- **Brake segments: trim the low-speed tail.** Riders are told to release the brakes
+  while still rolling, but if a brake segment runs down to standstill, the solver must
+  discard the part below ~1.5 m/s GPS speed — the bars are typically turned in the last
+  moment of a full stop, and the phone sits on the steering assembly.
 - A ride **may have no calibration segments at all** (rider skipped it); the solver falls
   back to the most recent solved calibration for the same mount.
 

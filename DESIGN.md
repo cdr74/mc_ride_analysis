@@ -218,9 +218,14 @@ handled offline (§11), not in the app.
 
 1. **Static level:** bike upright on level ground (center stand / held), bars straight, 10 s
    stationary → gravity vector in phone frame → bike z-axis.
-2. **Straight-line accel:** hard acceleration in a straight line, 5 s
+2. **Straight-line accel:** brisk acceleration in a straight line, ~5 s
    → horizontal specific-force direction → bike x-axis (y = z × x).
-3. **Straight-line brake:** confirms x-axis sign and quality.
+   Moderate is enough — the detector triggers at 2 m/s²; steady and straight beats strong.
+3. **Straight-line brake:** confirms x-axis sign and quality. Released while still
+   rolling, **not** braked to a standstill — at a full stop the bars typically get
+   turned (foot down), and the phone sits on the steering assembly. The solver
+   additionally trims the sub-walking-speed tail of brake segments (see
+   `analysis/schema.md`).
 
 Recommended at the start of every ride, **mandatory after remounting the phone** (mount
 position varies slightly between remounts). Calibration is never enforced by the app: a
