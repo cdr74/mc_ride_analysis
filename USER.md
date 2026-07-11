@@ -67,10 +67,16 @@ The calibration and all offline analysis assume the mount from `DESIGN.md` §7:
 - **Damped handlebar mount** (e.g. SP Connect + anti-vibration module). A damped mount is
   mandatory — engine vibration can otherwise alias into the data and can physically damage
   the phone camera's OIS.
-- Phone in **portrait, USB port down**, clamped rigidly — it must not move during the ride.
-- If your mount setup differs from the description in `Config.MOUNT_DESCRIPTION`
-  (`app/src/main/kotlin/dev/cdr74/ridelogger/Config.kt`), update that string before
-  building — it is written into every ride file and the analysis reads it.
+- **Orientation is free** — any fixed angle works. The per-ride calibration (§3.2) solves
+  the phone→bike rotation from data, so a dash-style tilt (top pointing forward, screen
+  angled up like the bike's TFT display) is perfectly fine and even helps GPS reception
+  and glanceability. Vertical portrait is *not* required.
+- What **is** required: clamped rigidly — the phone must not shift on the mount during the
+  ride. A shifted phone invalidates that ride's calibration.
+- The mount description in `Config.MOUNT_DESCRIPTION`
+  (`app/src/main/kotlin/dev/cdr74/ridelogger/Config.kt`) is written into every ride file
+  and read by the analysis — if your physical setup changes, update it (developer change,
+  needs a new release).
 
 ---
 

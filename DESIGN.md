@@ -168,7 +168,7 @@ plus `b0` = w (scalar), `b1` = estimated heading accuracy.
 | `sensor_gyro` / `sensor_mag` / ... | same pattern |
 | `gnss_raw_supported` | `true/false` |
 | `dropped_events` | written at close, per stream |
-| `mount` | free text: `SP Connect bar mount (+damping module y/n), portrait, USB down, bars straight at calib` |
+| `mount` | free text describing the actual mount, e.g. `SP Connect bar mount (+damping module y/n), top forward, screen tilted up ~TFT angle, bars straight at calib`. Orientation is unconstrained (calibration solves R_phone→bike); the description just has to match reality. |
 | `ride_end_utc_ms`, `clean_close` | written at close; absence ⇒ crash-terminated ride |
 
 The **clock anchor** (monotonic-ns ↔ UTC ↔ GPS time, taken twice) is what lets Python align

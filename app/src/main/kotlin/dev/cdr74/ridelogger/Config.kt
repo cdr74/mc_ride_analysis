@@ -26,9 +26,10 @@ object Config {
 
     const val RIDES_DIR = "rides"
 
-    /** Free-text mount description recorded in meta (design.md §5.3). */
+    /** Free-text mount description recorded in meta (design.md §5.3). Must match the real mount. */
     const val MOUNT_DESCRIPTION =
-        "SP Connect bar mount + anti-vibration module, portrait, USB down, bars straight at calib"
+        "SP Connect bar mount + anti-vibration module, top pointing forward, " +
+            "screen tilted up ~TFT angle, bars straight at calib"
 
     /** Below this measured accel rate the UI warns about the mic privacy toggle cap (design.md §11). */
     const val LOW_RATE_WARN_HZ = 210.0
