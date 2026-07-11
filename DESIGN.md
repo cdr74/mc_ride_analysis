@@ -197,7 +197,13 @@ the first sensor row.
 ## 7. Calibration procedure (data protocol, solved offline)
 
 The phone-to-bike rotation matrix is solved in Python from tagged segments. The app only
-provides guided tagging via a "Calibrate" flow that inserts `calib_start`/`calib_end` markers.
+provides guided tagging that inserts `calib_start`/`calib_end` markers — **hands-free**
+(ADR 0003): the rider presses one button while stationary; every later phase transition
+(still → hard accel → hard brake) is detected from GPS speed with simple thresholds
+(constants in `Config.kt`) and announced with a beep. The rider never touches or looks at
+the phone while the bike is moving. `calib_start` markers are backdated 2 s to cover the
+1 Hz detection latency; markers only need to *bracket* the maneuvers — the offline solver
+extracts exact segments. This is UI guidance logic only, not on-device fusion.
 
 **Mount is a handlebar mount (damped).** The phone frame therefore moves with the steering
 assembly, not the chassis. All calibration steps MUST be performed with the bars dead
@@ -211,8 +217,12 @@ handled offline (§11), not in the app.
    → horizontal specific-force direction → bike x-axis (y = z × x).
 3. **Straight-line brake:** confirms x-axis sign and quality.
 
-Repeat at the start of every ride (mount position varies slightly). The offline solver
-(`analysis/calibrate.py`) computes R_phone→bike per ride and stores it alongside the ride file.
+Recommended at the start of every ride, **mandatory after remounting the phone** (mount
+position varies slightly between remounts). Calibration is never enforced by the app: a
+ride without calibration segments is still valid — the offline solver
+(`analysis/calibrate.py`) computes R_phone→bike per ride where segments exist and falls
+back to the most recent solved calibration for rides without them, at reduced confidence.
+The solver discards segments that are too short (aborted holds, false starts).
 
 ---
 
@@ -224,7 +234,8 @@ Single screen, Compose:
 - Status block: per-stream measured Hz, GPS fix + accuracy + sat count, dropped events,
   elapsed time, file size.
 - **Marker** button (full-width, high contrast).
-- **Calibrate** stepper (3 steps of §7, each = big "start step / end step" toggle).
+- **Calibrate** — one start/cancel button; the hands-free flow of §7 runs on its own,
+  showing the current instruction and beeping on every phase transition.
 - Ride list: closed rides with size/duration, share + delete actions.
 
 No settings screen in MVP. Constants live in one `Config.kt`.

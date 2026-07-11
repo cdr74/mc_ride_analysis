@@ -33,4 +33,20 @@ object Config {
 
     /** Below this measured accel rate the UI warns about the mic privacy toggle cap (design.md §11). */
     const val LOW_RATE_WARN_HZ = 210.0
+
+    // Guided hands-free calibration: phase detection from GPS speed (ADR 0003).
+    // Thresholds only need to *bracket* the maneuvers — exact segments are solved offline.
+    const val CALIB_STATIC_MAX_MPS = 0.8         // below this = stationary (GPS speed noise floor)
+    const val CALIB_STATIC_CONFIRM_FIXES = 3     // consecutive still fixes before the hold starts
+    const val CALIB_STATIC_DURATION_NS = 10_000_000_000L
+    const val CALIB_MOVE_MIN_MPS = 1.5
+    const val CALIB_ACCEL_START_MPS2 = 2.0       // hard launch detection
+    const val CALIB_ACCEL_PLATEAU_MPS2 = 0.5     // accel considered over when below this
+    const val CALIB_ACCEL_MIN_NS = 3_000_000_000L
+    const val CALIB_ACCEL_MAX_NS = 15_000_000_000L
+    const val CALIB_BRAKE_START_MPS2 = -2.0      // hard braking detection
+    const val CALIB_BRAKE_EASE_MPS2 = -0.5       // braking considered over when above this
+    const val CALIB_BRAKE_MIN_NS = 2_000_000_000L
+    const val CALIB_BRAKE_MAX_NS = 12_000_000_000L
+    const val CALIB_LEAD_IN_NS = 2_000_000_000L  // backdate start markers to cover 1 Hz detection lag
 }

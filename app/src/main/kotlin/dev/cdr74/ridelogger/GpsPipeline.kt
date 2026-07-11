@@ -21,7 +21,11 @@ import com.google.android.gms.location.Priority
  * (design.md §4). All rows go into RideStore side queues; callbacks stay on the
  * main looper — rates here are ~1 Hz, trivial.
  */
-class GpsPipeline(context: Context, private val store: RideStore) {
+class GpsPipeline(
+    context: Context,
+    private val store: RideStore,
+    private val onFix: (Location) -> Unit = {},
+) {
 
     private val fused: FusedLocationProviderClient =
         LocationServices.getFusedLocationProviderClient(context)
@@ -57,6 +61,7 @@ class GpsPipeline(context: Context, private val store: RideStore) {
                         provider = loc.provider,
                     ),
                 )
+                onFix(loc)
             }
         }
     }

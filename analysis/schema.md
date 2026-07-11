@@ -39,6 +39,17 @@ CREATE TABLE marker (
 );
 ```
 
+### Calibration marker semantics (guided hands-free flow, app ≥ 0.2.0)
+
+- Calib segments carry `note` = `static_level` | `accel` | `brake`.
+- `calib_start` timestamps may be **backdated up to 2 s** relative to insertion order, to
+  cover the 1 Hz GPS detection latency — markers bracket the maneuver, they are not exact.
+- Aborted holds / false starts produce **short balanced segments**; the solver must filter
+  segments by minimum duration (static ≥ 8 s, accel/brake ≥ 2 s) and prefer the last
+  complete set in the ride.
+- A ride **may have no calibration segments at all** (rider skipped it); the solver falls
+  back to the most recent solved calibration for the same mount.
+
 ## Stream conventions
 
 | stream | sensor | units | v0–v2 | b0–b2 |

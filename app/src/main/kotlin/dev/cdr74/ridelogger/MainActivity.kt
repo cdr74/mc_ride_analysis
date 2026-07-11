@@ -25,7 +25,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -139,7 +138,7 @@ private fun MainScreen() {
             Text("MARKER (${status.markerCount})", fontSize = 22.sp)
         }
 
-        CalibrationStepper(running = status.running)
+        CalibrationCard(status)
 
         HorizontalDivider()
         Text("Rides", style = MaterialTheme.typography.titleMedium)
@@ -199,43 +198,54 @@ private fun StatusBlock(status: SessionStatus) {
     }
 }
 
-private val CALIB_STEPS = listOf(
-    "static_level" to "1. Static level — upright, level ground, 10 s",
-    "accel" to "2. Straight-line hard acceleration, ~5 s",
-    "brake" to "3. Straight-line hard braking",
-)
-
 @Composable
-private fun CalibrationStepper(running: Boolean) {
+private fun CalibrationCard(status: SessionStatus) {
     val context = LocalContext.current
-    var activeStep by remember { mutableIntStateOf(-1) }
+    val phase = status.calib
+    val active = phase != CalibrationGuide.Phase.IDLE && phase != CalibrationGuide.Phase.DONE
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Calibration", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Bars DEAD STRAIGHT (front wheel aligned with frame) for every step.",
+                "Hands-free: start it once while stopped, then just ride — the app detects " +
+                    "each phase (hold still 10 s → hard accel → hard brake) and beeps at every " +
+                    "transition. Bars DEAD STRAIGHT throughout. No buttons while moving.",
                 style = MaterialTheme.typography.bodySmall,
             )
-            CALIB_STEPS.forEachIndexed { i, (key, label) ->
-                val isActive = activeStep == i
-                OutlinedButton(
-                    onClick = {
-                        val kind = if (isActive) "calib_end" else "calib_start"
-                        context.startService(
-                            RideLoggerService.intent(context, RideLoggerService.ACTION_CALIB)
-                                .putExtra(RideLoggerService.EXTRA_KIND, kind)
-                                .putExtra(RideLoggerService.EXTRA_NOTE, key),
-                        )
-                        activeStep = if (isActive) -1 else i
+            if (phase != CalibrationGuide.Phase.IDLE) {
+                Text(
+                    phase.instruction,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (phase == CalibrationGuide.Phase.DONE) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.tertiary
                     },
-                    enabled = running && (activeStep == -1 || isActive),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                ) {
-                    Text(if (isActive) "END: $label" else label)
-                }
+                )
+            }
+            Button(
+                onClick = {
+                    val action = if (active) {
+                        RideLoggerService.ACTION_CALIB_CANCEL
+                    } else {
+                        RideLoggerService.ACTION_CALIB_START
+                    }
+                    context.startService(RideLoggerService.intent(context, action))
+                },
+                enabled = status.running,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp),
+            ) {
+                Text(
+                    when {
+                        active -> "CANCEL CALIBRATION"
+                        phase == CalibrationGuide.Phase.DONE -> "RECALIBRATE"
+                        else -> "START CALIBRATION"
+                    },
+                    fontSize = 18.sp,
+                )
             }
         }
     }

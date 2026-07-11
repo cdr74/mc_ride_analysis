@@ -93,27 +93,37 @@ The calibration and all offline analysis assume the mount from `DESIGN.md` §7:
    - **GPS: ±N m** with a satellite count, not "no fix",
    - **Dropped events: 0**.
 
-### 3.2 Calibrate — at the start of EVERY ride
+### 3.2 Calibrate — hands-free
 
-The mount position shifts slightly every time, so the phone→bike orientation is re-solved
-per ride from tagged segments. The app only tags the segments; the math happens offline.
+The phone→bike orientation is re-solved offline from tagged ride segments. The app tags
+them for you: **you press one button while stopped, then never touch the phone again** —
+each phase is detected automatically from GPS speed, and the app **beeps** at every
+transition so you never need to look at the screen.
 
-> **Bars DEAD STRAIGHT for every step.** The phone sits on the steering assembly: if the
+> **Bars DEAD STRAIGHT throughout.** The phone sits on the steering assembly: if the
 > bars are turned, the calibration is garbage. Front wheel aligned with the frame.
 
-In the **Calibration** card, each step is a toggle — tap to start, do the maneuver, tap
-again (**END**) to close it:
+1. Stopped, upright (held vertical or center stand — not the side stand), bars straight:
+   tap **START CALIBRATION**.
+2. **Hold still.** After a moment the app starts a 10 s measurement — *beep* when done.
+   (If you move too early you hear a low buzz and it simply restarts — just hold still
+   again.)
+3. Ride off whenever it's safe and **accelerate hard in a straight line** for ~5 s.
+   The app detects the launch by itself — *beep* when captured.
+4. When safe, **brake firmly in a straight line** (to a stop or near-stop) —
+   *beep-beep*: calibration complete.
 
-1. **Static level (10 s):** bike upright on level ground — center stand, or held vertical
-   (not on the side stand). Tap step 1, hold everything still for 10 seconds, tap END.
-2. **Straight-line acceleration (~5 s):** tap step 2, accelerate hard in a dead-straight
-   line for about 5 seconds, tap END when you roll off.
-3. **Straight-line braking:** tap step 3, brake firmly in a straight line, tap END.
-   (This confirms the direction found in step 2.)
+There is no time pressure between phases: cruise as long as you like before the
+acceleration or the braking — the app waits. Detection only needs to roughly bracket the
+maneuvers; the offline solver finds the exact segments. **CANCEL CALIBRATION** aborts
+cleanly at any point, and you can redo the whole thing anytime (**RECALIBRATE**) — extra
+or aborted segments are harmless.
 
-Steps 2 and 3 can be done in the first hundred meters of the ride; it is fine if a
-passenger or you at a stop press the buttons — the tap only needs to bracket the maneuver
-roughly, the solver finds the exact segment.
+**Do you have to calibrate every ride?** No — the app never forces it. Calibrate whenever
+the phone was taken off / remounted (the mount position shifts slightly each time); for
+back-to-back rides with the phone left on the bike, skipping is fine — the analysis falls
+back to the most recent calibration, at slightly reduced confidence. When in doubt, do it:
+it costs one traffic-light stop.
 
 ### 3.3 Ride
 
@@ -177,6 +187,8 @@ next ride. The file format itself is documented in `analysis/schema.md`.
 |---|---|
 | Accel/gyro stuck near 200 Hz, in-app warning shown | System mic privacy toggle is OFF — turn microphone access on (§1.4) and restart the ride |
 | "GPS: no fix" for minutes | Be outdoors with sky view; confirm Location permission is *Precise*; first fix after a long time can take a minute |
+| Calibration stuck at "Hold still" | Phase detection runs on GPS speed — wait until the status card shows a GPS fix before starting calibration |
+| No beep at a calibration transition | Check media volume; the cues play on the media stream (helmet speakers / earbuds work) |
 | Rates drop during a long hot ride | Thermal throttling — expected on hot days; the gap analysis in the validator will show it. Shade the phone if possible |
 | Dropped events > 0 | Should not happen at MVP write rates — validate the ride; if it recurs, note phone temperature and file an issue |
 | Ride missing from the list after a crash | The service never resumes a file after a kill; the file is still in the list (or on disk under `Android/data` files/rides) and readable — validator will report it as crash-terminated |
