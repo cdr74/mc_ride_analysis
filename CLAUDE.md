@@ -12,8 +12,8 @@ file, for **offline sensor-fusion development in Python**. It is NOT the final p
 - The on-device rotation-vector output is logged only as a *comparison baseline* — do not build
   analysis features on it.
 
-The authoritative technical specification is **`design.md`** in the repo root. Read it before
-implementing anything. If code and `design.md` diverge, `design.md` wins; update it via a short
+The authoritative technical specification is **`DESIGN.md`** in the repo root. Read it before
+implementing anything. If code and `DESIGN.md` diverge, `DESIGN.md` wins; update it via a short
 ADR note in `docs/adr/` when a decision changes.
 
 ## Non-negotiable data-integrity rules
@@ -25,7 +25,7 @@ These are the reasons this app exists. Violating any of them makes collected rid
    (`meta` table, `dropped_events` counter) — never block `onSensorChanged`.
 2. **Timestamps:** persist `SensorEvent.timestamp` (elapsedRealtimeNanos, monotonic) **unmodified**.
    Never convert to wall clock at write time. Wall-clock and GPS-time mapping is recorded once per
-   ride in the `meta` table (see design.md §5.3).
+   ride in the `meta` table (see DESIGN.md §5.3).
 3. **No filtering, smoothing, or unit conversion on-device.** Raw values, raw units
    (m/s², rad/s, µT), exactly as delivered. Fusion happens offline.
 4. **One ride = one SQLite file.** Never append across rides; never mutate a closed ride file.
@@ -40,10 +40,10 @@ These are the reasons this app exists. Violating any of them makes collected rid
 - **Min SDK 29, target SDK 35.** Primary test device is the developer's physical phone;
   emulator has no real sensors — do not "verify" sensor behavior on it.
 - **Storage:** SQLite via `androidx.sqlite` / raw `SQLiteDatabase` (no Room — schema is fixed and
-  performance-critical; hand-written batched inserts, see design.md §5).
+  performance-critical; hand-written batched inserts, see DESIGN.md §5).
 - **Location:** `FusedLocationProviderClient` at highest rate + raw `GnssMeasurements` callback
   where supported (log availability, degrade gracefully).
-- **DI:** none. Manual wiring. The app is 5 classes; Hilt is overhead.
+- **DI:** none. Manual wiring. The app is ~9 small classes; Hilt is overhead.
 - **Build:** Gradle Kotlin DSL, version catalog (`gradle/libs.versions.toml`).
 
 ## Commands
@@ -60,16 +60,19 @@ After bumping `versionCode`/`versionName`, run tests + `assembleDebug` and publi
 `gh release create v<version> ridelogger-<version>.apk` (process in README.md). Keep
 releases debug-signed from the same machine so upgrades keep installing over each other.
 
-## Architecture map (details in design.md)
+## Architecture map (details in DESIGN.md)
 
 ```
 app/src/main/kotlin/dev/cdr74/ridelogger/
-  MainActivity.kt          # Compose UI: start/stop, status, marker button
+  MainActivity.kt          # Compose UI: start/stop, status, marker, calibration card
   RideLoggerService.kt     # foreground service; owns session lifecycle
-  SensorPipeline.kt        # SensorManager registration, HandlerThread, ring buffer
+  SensorPipeline.kt        # SensorManager registration, HandlerThread → ring buffer
   GpsPipeline.kt           # fused location + GNSS status logging
+  CalibrationGuide.kt      # hands-free calib state machine on GPS speed (ADR 0003)
+  RingBuffer.kt            # lock-free SPSC buffer between sensor thread and writer
   RideStore.kt             # SQLite writer: schema, batched transactions, meta table
   RideExporter.kt          # copy closed ride files to Downloads / share sheet
+  Config.kt                # all tunables/constants
 ```
 
 Data flow: sensor callbacks → lock-free ring buffer → single writer coroutine → SQLite (WAL).
@@ -80,7 +83,7 @@ UI observes a `StateFlow<SessionStatus>` from the service. No other coupling.
 - **Unit-test:** ring buffer, batch writer (drop counting, transaction boundaries),
   schema creation, exporter file naming. Use in-memory SQLite.
 - **Do not attempt to unit-test** `SensorManager`/GPS integration — that is validated by the
-  field checklist in design.md §9 and by the Python-side `validate_ride.py` script.
+  field checklist in DESIGN.md §9 and by the Python-side `validate_ride.py` script.
 - Every schema change requires bumping `schema_version` in `meta` and updating
   `analysis/schema.md`.
 
@@ -90,7 +93,8 @@ UI observes a `StateFlow<SessionStatus>` from the service. No other coupling.
 - Do not implement any on-device fusion (Madgwick/Kalman/lean-angle math). Offline only.
 - Do not lower sensor rates "to save battery" — battery cost is accepted for MVP.
 - Do not request permissions beyond: `ACCESS_FINE_LOCATION`, `POST_NOTIFICATIONS`,
-  `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`, `HIGH_SAMPLING_RATE_SENSORS`.
+  `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`, `HIGH_SAMPLING_RATE_SENSORS`,
+  `WAKE_LOCK` (install-time, required by DESIGN.md §6 — see docs/adr/0001).
 - Do not "clean up" raw values (clamping, rounding, deduplication).
 
 ## Definition of done for the MVP

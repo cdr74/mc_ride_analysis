@@ -1,4 +1,4 @@
-# design.md — RideLogger: Android Motorcycle Telemetry Logger (MVP)
+# DESIGN.md — RideLogger: Android Motorcycle Telemetry Logger (MVP)
 
 Status: Draft 1.0 · Owner: Chris · Last updated: 2026-07-11
 
@@ -163,7 +163,8 @@ plus `b0` = w (scalar), `b1` = estimated heading accuracy.
 | `app_version` | `0.3.0 (git 1a2b3c4)` |
 | `device` | `Google Pixel 8, Android 15` |
 | `ride_start_utc_ms` | `1752230400123` |
-| `clock_anchor` | JSON: `{elapsed_ns, utc_ms, gps_utc_ms}` captured at start **and** stop |
+| `clock_anchor` | JSON: `{elapsed_ns, utc_ms, gps_utc_ms}` captured at start (`gps_utc_ms` null if no fix yet) |
+| `clock_anchor_stop` | same JSON, captured at stop |
 | `sensor_accel` | `LSM6DSO uncalibrated, requested FASTEST, measured 417.2 Hz` |
 | `sensor_gyro` / `sensor_mag` / ... | same pattern |
 | `gnss_raw_supported` | `true/false` |
@@ -292,6 +293,6 @@ same ride file — deferred; would validate but not block the MVP.
 | # | Deliverable | Exit criterion |
 |---|---|---|
 | M1 | Logging core (service, pipelines, store) + unit tests | 10-min desk log passes validate_ride.py |
-| M2 | UI, markers, calibration stepper, export | full workflow on device, gloves on |
+| M2 | UI, markers, guided hands-free calibration, export | full workflow on device, gloves on |
 | M3 | Field hardening | §9 checklist green on target phone |
 | M4 | First instrumented rides + analysis kickoff | 3 rides with calibration segments archived |
