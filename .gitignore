@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+.kotlin/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+.cxx/
+local.properties
+
+# Signing
+*.jks
+*.keystore
+
+# Python (analysis)
+__pycache__/
+*.pyc
+.venv/
+
+# Exported ride files — archive outside git
+*.db
+*.db-wal
+*.db-shm
+
+# OS
+.DS_Store
