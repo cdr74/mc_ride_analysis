@@ -197,6 +197,11 @@ private fun MainScreen() {
 
         SlotPicker(slots) { slots = it; uiPrefs.slots = it }
         ScreenModeRow(screenMode) { screenMode = it; uiPrefs.screenMode = it }
+        Text(
+            "tap the chips to change what's shown while riding",
+            style = MaterialTheme.typography.bodySmall,
+            color = Ui.Muted,
+        )
 
         HorizontalDivider()
         Text("Rides", style = MaterialTheme.typography.titleMedium)

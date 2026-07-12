@@ -34,6 +34,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -51,9 +52,6 @@ import kotlin.math.min
  * ("computing…"), cached by RideAnalyzer.
  */
 
-private val TXT_MUTED = Color(0xFF898781)
-private val TRACE = Color(0xFF2A78D6)
-private val GRID = Color(0xFFE1E0D9)
 
 @Composable
 fun PostRideScreen(file: File, onClose: () -> Unit) {
@@ -78,11 +76,11 @@ fun PostRideScreen(file: File, onClose: () -> Unit) {
         ) {
             CircularProgressIndicator()
             Spacer(Modifier.height(16.dp))
-            Text("computing… %.0f %%".format(progress * 100), color = TXT_MUTED)
+            Text("computing… %.0f %%".format(progress * 100), color = Ui.Muted)
             Text(
                 "first open of a ride replays all raw data once, then it's cached",
                 style = MaterialTheme.typography.bodySmall,
-                color = TXT_MUTED,
+                color = Ui.Muted,
             )
         }
 
@@ -147,7 +145,7 @@ private fun Summary(
         Text(
             "tap a dimension for the trace ▸",
             style = MaterialTheme.typography.bodySmall,
-            color = TXT_MUTED,
+            color = Ui.Muted,
         )
     }
 }
@@ -179,7 +177,7 @@ private fun DimensionRow(
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(dim.label, fontWeight = FontWeight.SemiBold)
-                Text(statsLabel, color = TXT_MUTED)
+                Text(statsLabel, color = Ui.Muted)
             }
             if (trace != null) {
                 val stats = validStats(trace)
@@ -212,7 +210,8 @@ private fun DimensionDetail(
     var win by remember { mutableStateOf(0f..tEnd) }
     var readoutIdx by remember { mutableStateOf<Int?>(null) }
 
-    // extremes for the jump list
+    // extremes for the jump list; edge-origin dimensions (speed) only have a max —
+    // "0 km/h" is not an extreme worth listing (0.3.1 review)
     val extremes = remember(trace) {
         var mnI = -1
         var mxI = -1
@@ -222,7 +221,7 @@ private fun DimensionDetail(
             if (mnI < 0 || v < trace.v[mnI]) mnI = i
             if (mxI < 0 || v > trace.v[mxI]) mxI = i
         }
-        listOfNotNull(mnI.takeIf { it >= 0 }, mxI.takeIf { it >= 0 })
+        listOfNotNull(mnI.takeIf { it >= 0 && dim.centerOrigin }, mxI.takeIf { it >= 0 })
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -238,7 +237,7 @@ private fun DimensionDetail(
             } else {
                 "pinch = zoom · drag = pan · tap = value"
             },
-            color = TXT_MUTED,
+            color = Ui.Muted,
         )
 
         TraceCanvas(
@@ -252,7 +251,7 @@ private fun DimensionDetail(
         )
 
         HorizontalDivider()
-        Text("EXTREMES", style = MaterialTheme.typography.labelMedium, color = TXT_MUTED)
+        Text("EXTREMES", style = MaterialTheme.typography.labelMedium, color = Ui.Muted)
         extremes.forEach { i ->
             Row(
                 Modifier
@@ -266,7 +265,7 @@ private fun DimensionDetail(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text("%.1f %s".format(trace.v[i], dim.unit), fontWeight = FontWeight.SemiBold)
-                Text("@ ${formatDur(trace.t[i])}", color = TXT_MUTED)
+                Text("@ ${formatDur(trace.t[i])}", color = Ui.Muted)
             }
         }
     }
@@ -283,24 +282,30 @@ private fun TraceCanvas(
     modifier: Modifier = Modifier,
 ) {
     val tEnd = trace.t.last()
+    // pointerInput blocks capture their closures ONCE (they restart only when the key
+    // changes) — reading `win` directly gave every gesture the stale initial window,
+    // which is why zoom "did nothing" (0.3.1 review). Read through rememberUpdatedState.
+    val winNow = androidx.compose.runtime.rememberUpdatedState(win)
 
     Canvas(
         modifier
             .pointerInput(tEnd) {
                 detectTransformGestures { centroid, pan, zoom, _ ->
+                    val cur = winNow.value
                     val w = size.width.toFloat()
-                    val span = win.endInclusive - win.start
-                    val tCentroid = win.start + centroid.x / w * span
+                    val span = cur.endInclusive - cur.start
+                    val tCentroid = cur.start + centroid.x / w * span
                     val newSpan = (span / zoom).coerceIn(5f, tEnd)
-                    var start = tCentroid - (tCentroid - win.start) / zoom - pan.x / w * newSpan
-                    start = start.coerceIn(0f, tEnd - newSpan)
+                    var start = tCentroid - (tCentroid - cur.start) / zoom - pan.x / w * newSpan
+                    start = start.coerceIn(0f, (tEnd - newSpan).coerceAtLeast(0f))
                     onWindow(start..(start + newSpan))
                 }
             }
             .pointerInput(tEnd) {
                 detectTapGestures { pos ->
-                    val span = win.endInclusive - win.start
-                    val t = win.start + pos.x / size.width * span
+                    val cur = winNow.value
+                    val span = cur.endInclusive - cur.start
+                    val t = cur.start + pos.x / size.width * span
                     // trace.t is (nearly) uniform — binary search for the nearest sample
                     var lo = 0
                     var hi = trace.t.size - 1
@@ -337,10 +342,31 @@ private fun TraceCanvas(
         fun px(t: Float) = (t - win.start) / span * w
         fun py(v: Float) = h - (v - yMin) / (yMax - yMin) * h
 
-        // grid: zero line (center dims) + top/bottom quarter lines
-        drawLine(GRID, Offset(0f, py(yMax * 0.5f + yMin * 0.5f)), Offset(w, py(yMax * 0.5f + yMin * 0.5f)))
+        // horizontal gridlines at the dimension's natural step (e.g. every 5° lean),
+        // step doubled while lines would land closer than ~24 px; sparse y labels on
+        // every second line — readable without clutter (0.3.1 review)
+        var step = dim.gridStep
+        while ((yMax - yMin) / step * 24f > h && step < yMax) step *= 2
+        val labelPaint = android.graphics.Paint().apply {
+            isAntiAlias = true
+            textSize = 11.sp.toPx()
+            color = android.graphics.Color.rgb(0x64, 0x74, 0x8B) // Ui.Muted
+        }
+        var gv = kotlin.math.ceil(yMin / step) * step
+        while (gv <= yMax + 1e-3f) {
+            val y = py(gv)
+            if (abs(gv) > 1e-3f) drawLine(Ui.Track, Offset(0f, y), Offset(w, y))
+            val labelled = (Math.round(gv / step) % 2 == 0)
+            if (labelled && y > 14f && y < h - 10f) {
+                drawContext.canvas.nativeCanvas.drawText(
+                    "%.0f".format(gv), 4f, y - 4f, labelPaint,
+                )
+            }
+            gv += step
+        }
+        // pronounced zero line for center-origin dimensions
         if (dim.centerOrigin) {
-            drawLine(TXT_MUTED, Offset(0f, py(0f)), Offset(w, py(0f)), strokeWidth = 2f)
+            drawLine(Ui.Ink, Offset(0f, py(0f)), Offset(w, py(0f)), strokeWidth = 2f)
         }
 
         // trace polyline with NaN gaps, stride-decimated to ~2 points per pixel
@@ -361,18 +387,18 @@ private fun TraceCanvas(
             }
             i += stride
         }
-        drawPath(path, TRACE, style = Stroke(width = 3f))
+        drawPath(path, Ui.Accent, style = Stroke(width = 3f))
 
         // readout marker
         if (readoutIdx != null && readoutIdx in lo until hi && !trace.v[readoutIdx].isNaN()) {
             val x = px(trace.t[readoutIdx])
-            drawLine(TXT_MUTED, Offset(x, 0f), Offset(x, h))
-            drawCircle(TRACE, radius = 8f, center = Offset(x, py(trace.v[readoutIdx])))
+            drawLine(Ui.Muted, Offset(x, 0f), Offset(x, h))
+            drawCircle(Ui.Accent, radius = 8f, center = Offset(x, py(trace.v[readoutIdx])))
             drawCircle(Color.White, radius = 4f, center = Offset(x, py(trace.v[readoutIdx])))
         }
 
         // window position indicator (thin strip at the bottom)
-        drawRect(GRID, Offset(0f, h - 4f), Size(w, 4f))
-        drawRect(TRACE, Offset(win.start / tEnd * w, h - 4f), Size(span / tEnd * w, 4f))
+        drawRect(Ui.Track, Offset(0f, h - 4f), Size(w, 4f))
+        drawRect(Ui.Accent, Offset(win.start / tEnd * w, h - 4f), Size(span / tEnd * w, 4f))
     }
 }

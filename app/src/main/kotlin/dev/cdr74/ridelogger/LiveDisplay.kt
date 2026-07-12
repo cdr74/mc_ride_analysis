@@ -34,12 +34,6 @@ import kotlin.math.abs
  * (no GPS fix yet, calibration pending, or lean below the 18 km/h cutoff).
  */
 
-private val BAR_FILL = Color(0xFF2A78D6)
-private val BAR_NEAR = Color(0xFFC98500) // fill past 85 % of the session watermark
-private val BAR_AT = Color(0xFFD03B3B) // fill past 97 %
-private val BAR_TRACK = Color(0xFFE9E8E2)
-private val BAR_TICK = Color(0xFF0B0B0B)
-private val TXT_MUTED = Color(0xFF898781)
 
 @Composable
 fun LiveDisplayScreen(
@@ -55,7 +49,7 @@ fun LiveDisplayScreen(
             .padding(horizontal = 20.dp, vertical = 12.dp),
     ) {
         if (diagLine != null) {
-            Text(diagLine, fontSize = 12.sp, color = TXT_MUTED)
+            Text(diagLine, fontSize = 12.sp, color = Ui.Muted)
         }
         slots.filterNotNull().ifEmpty { listOf(Dimension.SPEED) }.forEachIndexed { i, dim ->
             if (i > 0) HorizontalDivider()
@@ -68,7 +62,7 @@ fun LiveDisplayScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(80.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E)),
+            colors = ButtonDefaults.buttonColors(containerColor = Ui.Stop),
         ) {
             Text("STOP", fontSize = 26.sp)
         }
@@ -84,19 +78,19 @@ fun DimensionSlot(dim: Dimension, live: LiveDim, calibrated: Boolean = true) {
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         val hint = if (!calibrated && dim != Dimension.SPEED) " · calibrating…" else ""
-        Text(dim.label + hint, fontSize = 14.sp, color = TXT_MUTED, letterSpacing = 2.sp)
+        Text(dim.label + hint, fontSize = 14.sp, color = Ui.Muted, letterSpacing = 2.sp)
         Text(
             text = numeral(dim, live.value),
             fontSize = 84.sp,
             fontWeight = FontWeight.Black,
-            color = if (live.value == null) TXT_MUTED else Color(0xFF0B0B0B),
+            color = if (live.value == null) Ui.Muted else Ui.Ink,
         )
         WatermarkBar(dim, live)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             val left = if (dim.centerOrigin) "${dim.range.toInt()}" else "0"
-            Text(left, fontSize = 12.sp, color = TXT_MUTED)
-            if (dim.centerOrigin) Text("0", fontSize = 12.sp, color = TXT_MUTED)
-            Text("${dim.range.toInt()} ${dim.unit}", fontSize = 12.sp, color = TXT_MUTED)
+            Text(left, fontSize = 12.sp, color = Ui.Muted)
+            if (dim.centerOrigin) Text("0", fontSize = 12.sp, color = Ui.Muted)
+            Text("${dim.range.toInt()} ${dim.unit}", fontSize = 12.sp, color = Ui.Muted)
         }
     }
 }
@@ -109,9 +103,12 @@ private fun numeral(dim: Dimension, v: Float?): String = when {
 }
 
 /**
- * The unified bar (ui-mockup S2): recessed track, fill from center or left edge,
- * 2 dp session-watermark ticks that never retreat. The fill shifts color as it
- * approaches the watermark on its side (subtle "near your max" cue, Q1b).
+ * The unified bar (ui-mockup S2): bordered track, fill from center or left edge,
+ * session-watermark ticks that never retreat. The fill shifts color as it approaches
+ * the watermark on its side ("near your max", Q1b). Per the 0.3.1 review: the center
+ * origin is a pronounced ink line protruding above/below the track, and when no live
+ * value exists but watermarks do (post-ride summary rows), the bar shows solid range
+ * fills from the origin out to each extreme instead of bare tick lines.
  */
 @Composable
 fun WatermarkBar(dim: Dimension, live: LiveDim, height: Int = 44) {
@@ -122,6 +119,8 @@ fun WatermarkBar(dim: Dimension, live: LiveDim, height: Int = 44) {
     ) {
         val w = size.width
         val h = size.height
+        val inset = 4.dp.toPx() // track is inset so the center line can protrude
+        val trackH = h - 2 * inset
         val r = CornerRadius(4.dp.toPx())
         // fraction of full width for a value
         fun frac(v: Float): Float = if (dim.centerOrigin) {
@@ -130,30 +129,44 @@ fun WatermarkBar(dim: Dimension, live: LiveDim, height: Int = 44) {
             v / dim.range
         }.coerceIn(0f, 1f)
 
-        drawRoundRect(BAR_TRACK, size = Size(w, h), cornerRadius = r)
+        drawRoundRect(Ui.Track, topLeft = Offset(0f, inset), size = Size(w, trackH), cornerRadius = r)
+        drawRoundRect(
+            Ui.TrackEdge, topLeft = Offset(0f, inset), size = Size(w, trackH),
+            cornerRadius = r, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx()),
+        )
 
         val origin = if (dim.centerOrigin) 0.5f else 0f
         val v = live.value
+
+        fun fill(from: Float, to: Float, color: Color) {
+            val x0 = minOf(from, to) * w
+            val x1 = maxOf(from, to) * w
+            drawRoundRect(color, topLeft = Offset(x0, inset), size = Size(x1 - x0, trackH), cornerRadius = r)
+        }
+
         if (v != null) {
-            val f = frac(v)
-            val x0 = minOf(origin, f) * w
-            val x1 = maxOf(origin, f) * w
             val mark = if (v >= 0) live.watermarkPos else live.watermarkNeg
             val ratio = if (mark != null && abs(mark) > 1e-3) abs(v) / abs(mark) else 0f
-            val fill = when {
-                ratio > 0.97f -> BAR_AT
-                ratio > 0.85f -> BAR_NEAR
-                else -> BAR_FILL
+            val color = when {
+                ratio > 0.97f -> Ui.AtMax
+                ratio > 0.85f -> Ui.NearMax
+                else -> Ui.Accent
             }
-            drawRoundRect(fill, topLeft = Offset(x0, 0f), size = Size(x1 - x0, h), cornerRadius = r)
+            fill(origin, frac(v), color)
+        } else {
+            // summary mode: show the session's reach as solid bars, not hairlines
+            live.watermarkNeg?.let { fill(origin, frac(it), Ui.AccentSoft) }
+            live.watermarkPos?.let { fill(origin, frac(it), Ui.Accent) }
+        }
+
+        for (mark in listOfNotNull(live.watermarkNeg, live.watermarkPos)) {
+            val x = frac(mark) * w
+            drawRect(Ui.Ink, topLeft = Offset(x - 2f, inset), size = Size(4f, trackH))
         }
 
         if (dim.centerOrigin) {
-            drawRect(BAR_TICK.copy(alpha = 0.35f), topLeft = Offset(w / 2 - 1, 0f), size = Size(2f, h))
-        }
-        for (mark in listOfNotNull(live.watermarkNeg, live.watermarkPos)) {
-            val x = frac(mark) * w
-            drawRect(BAR_TICK, topLeft = Offset(x - 2f, 0f), size = Size(4f, h))
+            // pronounced origin: full-height ink line, protrudes past the track
+            drawRect(Ui.Ink, topLeft = Offset(w / 2 - 2f, 0f), size = Size(4f, h))
         }
     }
 }

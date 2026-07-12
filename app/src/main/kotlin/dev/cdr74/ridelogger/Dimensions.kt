@@ -11,11 +11,13 @@ enum class Dimension(
     /** Full-scale value: center-origin bars span ±range, edge-origin 0..range. */
     val range: Float,
     val centerOrigin: Boolean,
+    /** Horizontal gridline spacing in the trace view (0.3.1 review: e.g. every 5° lean). */
+    val gridStep: Float,
 ) {
-    LEAN("LEAN", "°", 45f, true),
-    ACCEL("ACCEL / BRAKE", "m/s²", 10f, true),
-    PITCH("PITCH", "°", 20f, true),
-    SPEED("SPEED", "km/h", 120f, false),
+    LEAN("LEAN", "°", 45f, true, 5f),
+    ACCEL("ACCEL / BRAKE", "m/s²", 10f, true, 2f),
+    PITCH("PITCH", "°", 20f, true, 5f),
+    SPEED("SPEED", "km/h", 120f, false, 20f),
     ;
 
     companion object {

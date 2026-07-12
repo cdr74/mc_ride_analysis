@@ -135,7 +135,7 @@ class RideLoggerService : Service() {
 
         val gps = GpsPipeline(this, store, onFix = { loc ->
             val speed = if (loc.hasSpeed()) loc.speed else null
-            estimator.onGpsFix(speed)
+            estimator.onGpsFix(loc.elapsedRealtimeNanos, speed)
             autoCalibrator?.onGpsFix(
                 loc.elapsedRealtimeNanos, speed,
                 if (loc.hasBearing()) loc.bearing else null,

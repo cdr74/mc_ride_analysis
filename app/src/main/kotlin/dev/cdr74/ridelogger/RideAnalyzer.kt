@@ -123,7 +123,7 @@ object RideAnalyzer {
                 if (stream == Config.STREAM_ACCEL) est.onAccel(t, x, y, z) else est.onGyro(t, x, y, z)
             },
             onGps = { t, speed, _ ->
-                est.onGpsFix(speed)
+                est.onGpsFix(t, speed)
                 if (speed != null) {
                     if (gpsT0 < 0) gpsT0 = t
                     gpsT.add((t - gpsT0) / 1e9f)
@@ -236,7 +236,8 @@ object RideAnalyzer {
 
     // --- JSON cache (sidecar file, version-gated)
 
-    private const val CACHE_VERSION = 1
+    // v2: GPS-aided pitch fix (phantom +46° under acceleration) — recompute old caches
+    private const val CACHE_VERSION = 2
 
     private fun toJson(a: Analysis): JSONObject = JSONObject().apply {
         put("version", CACHE_VERSION)

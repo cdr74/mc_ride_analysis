@@ -182,6 +182,7 @@ next ride. The file format itself is documented in `analysis/schema.md`.
 | Startup error "Sensor rate capped at 200 Hz" | System mic privacy toggle is OFF — the error card's button takes you to the setting; turn microphone access on and return to the app |
 | Stuck on "Initializing … waiting for GPS fix" | Be outdoors with sky view; confirm Location permission is *Precise*; first fix after a long time can take a minute |
 | Lean bar shows "—" while riding | Below 18 km/h that's intentional (bar-turn coupling). Above 18 km/h with "calibrating…": first ride on this install — ride steadily for a few minutes, it resolves itself |
+| Pitch numbers look too large | Fixed in 0.3.2 (acceleration no longer reads as phantom wheelie). Pitch remains an indicative v1 estimate until validated against real wheelie data |
 | Rates drop during a long hot ride | Thermal throttling — expected on hot days; the gap analysis in the validator will show it. Shade the phone if possible |
 | Dropped events > 0 | Should not happen at MVP write rates — validate the ride; if it recurs, note phone temperature and file an issue |
 | Ride missing from the list after a crash | The service never resumes a file after a kill; the file is still in the list (or on disk under `Android/data` files/rides) and readable — validator will report it as crash-terminated |

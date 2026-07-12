@@ -220,6 +220,26 @@ row reuses the live-display bar grammar (fill = session max reach, ticks = extre
 
 ---
 
+## Field-review refinements (0.3.1 → 0.3.2, from Chris's first hands-on review)
+
+- **Palette** (one place: `Theme.kt`): white ground for sunlight, ink `#0F172A`
+  structure/text, slate muted/track tones, one vivid accent `#2563EB`; amber/red
+  reserved for "near session max". Modern, clean, higher contrast than v0.3.0.
+- **Bars:** center origin is a pronounced ink line protruding above/below the track;
+  track has a hairline border; in the post-ride summary a bar shows **solid range
+  fills** from the origin out to each session extreme (soft accent left, accent
+  right), not bare tick lines.
+- **Traces (S3b):** horizontal gridlines at each dimension's natural step (lean/pitch
+  5°, accel 2 m/s², speed 20 km/h; step doubles when lines get denser than ~24 px),
+  y-labels on every second gridline (readable, not cluttered), pronounced zero line.
+- **Extremes list:** edge-origin dimensions (speed) list only their max — "0 km/h" is
+  not an extreme.
+- **Home:** one hint line under the picker chips ("tap the chips to change …") —
+  chip-tapping wasn't discoverable.
+- **Pitch estimator fix:** gravity pitch is corrected by GPS-derived longitudinal
+  acceleration before use (a 6 m/s² launch otherwise reads as ~38° phantom wheelie;
+  +46° was observed). Still a v1 channel until real wheelie data exists.
+
 ## Decision log & remaining questions
 
 | # | Topic | Status |

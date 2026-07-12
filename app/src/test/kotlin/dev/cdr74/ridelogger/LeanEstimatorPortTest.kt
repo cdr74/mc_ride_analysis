@@ -65,7 +65,7 @@ class LeanEstimatorPortTest {
             val c = line.split(',')
             val t = c[1].toLong()
             while (gpsIdx < gps.size && gps[gpsIdx].first <= t) {
-                estimator.onGpsFix(gps[gpsIdx].second)
+                estimator.onGpsFix(gps[gpsIdx].first, gps[gpsIdx].second)
                 gpsIdx++
             }
             val x = c[2].toFloat()

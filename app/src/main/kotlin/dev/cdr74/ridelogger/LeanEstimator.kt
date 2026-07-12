@@ -101,9 +101,26 @@ class LeanEstimator(
 
     // --- GPS hand-off (main thread → sensor thread)
     @Volatile private var gpsSpeedMps: Float = -1f // <0 = no fix yet
+    @Volatile private var gpsALong: Float = 0f // GPS-derived longitudinal accel, m/s²
+    private var prevFixSpeed = -1f
+    private var prevFixTNs = 0L
 
-    fun onGpsFix(speedMps: Float?) {
-        gpsSpeedMps = speedMps ?: -1f
+    fun onGpsFix(tNs: Long, speedMps: Float?) {
+        if (speedMps == null) {
+            gpsSpeedMps = -1f
+            prevFixSpeed = -1f
+            gpsALong = 0f
+            return
+        }
+        gpsSpeedMps = speedMps
+        val dt = (tNs - prevFixTNs) / 1e9
+        gpsALong = if (prevFixSpeed >= 0 && dt in 0.2..3.0) {
+            ((speedMps - prevFixSpeed) / dt).toFloat()
+        } else {
+            0f
+        }
+        prevFixSpeed = speedMps
+        prevFixTNs = tNs
     }
 
     // --- input-rate estimation, then anti-alias filters designed for that rate
@@ -123,6 +140,7 @@ class LeanEstimator(
     private var theta = 0.0 // pitch, rad, + = nose up
     private var kinLp: Lp2? = null
     private var accLp: Lp2? = null
+    private var aLongLp: Lp2? = null
     private var stepsSincePublish = 0
 
     fun onAccel(tNs: Long, x: Float, y: Float, z: Float) {
@@ -152,6 +170,7 @@ class LeanEstimator(
         aaFilters = Array(6) { Lp4(AA_HZ, fs) }
         kinLp = Lp2(KIN_HZ, STEP_HZ)
         accLp = Lp2(KIN_HZ, STEP_HZ)
+        aLongLp = Lp2(KIN_HZ, STEP_HZ)
         return aaFilters
     }
 
@@ -189,9 +208,18 @@ class LeanEstimator(
         val target = if (v > LEAN_MIN_SPEED_MPS) kin else gravRoll
         phi += dt / TAU_ROLL_S * (target - phi)
 
-        // pitch: + = nose up; gravity pitch is accel-contaminated, hence the slow τ
+        // pitch: + = nose up. The specific force along x contains the bike's actual
+        // longitudinal acceleration — uncorrected, a 6 m/s² launch reads as asin(6/g)
+        // ≈ 38° of phantom wheelie (observed as +46° in the field, 0.3.1 review).
+        // Subtract the GPS-derived longitudinal acceleration (smoothed) before
+        // extracting gravity pitch — the same GPS-aiding idea as the lean channel.
+        val aLong = aLongLp!!.filter(gpsALong.toDouble())
         val fMag = sqrt(fx * fx + fy * fy + fz * fz)
-        val gravPitch = if (fMag > 1.0) asin((fx / fMag).coerceIn(-1.0, 1.0)) else 0.0
+        val gravPitch = if (fMag > 1.0) {
+            asin(((fx - aLong) / fMag).coerceIn(-1.0, 1.0))
+        } else {
+            0.0
+        }
         theta += -wy * dt
         theta += dt / TAU_PITCH_S * (gravPitch - theta)
 
