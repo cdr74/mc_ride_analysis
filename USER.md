@@ -128,8 +128,9 @@ Tap **STOP** (bottom of the live display). The app closes the ride file and open
 **post-ride summary** automatically: distance, duration, and every dimension with its
 session extremes. Tap a dimension for the full trace over time — pinch to zoom, drag to
 pan, tap for the value at that moment; the EXTREMES list jumps straight to the deepest
-lean or hardest braking. The first open shows "computing…" for a few seconds (the
-analysis runs once and is cached). Rides remain in the **Rides** list.
+lean or hardest braking. The first open of a ride replays all of its raw data once and
+shows "computing…" with a progress percentage — expect ~10–30 s for a long ride — then
+the result is cached and every later open is instant. Rides remain in the **Rides** list.
 
 If the app or phone died mid-ride: the file is still readable up to the last committed
 batch (≤ 0.5 s of data lost). The validator flags such rides as crash-terminated —

@@ -62,8 +62,11 @@ fun PostRideScreen(file: File, onClose: () -> Unit) {
 
     val context = androidx.compose.ui.platform.LocalContext.current
     var analysis by remember(file) { mutableStateOf<RideAnalyzer.Analysis?>(null) }
+    var progress by remember(file) { mutableStateOf(0f) }
     LaunchedEffect(file) {
-        analysis = withContext(Dispatchers.IO) { RideAnalyzer.get(context, file) }
+        analysis = withContext(Dispatchers.IO) {
+            RideAnalyzer.get(context, file) { progress = it }
+        }
     }
 
     val a = analysis
@@ -75,7 +78,12 @@ fun PostRideScreen(file: File, onClose: () -> Unit) {
         ) {
             CircularProgressIndicator()
             Spacer(Modifier.height(16.dp))
-            Text("computing…", color = TXT_MUTED)
+            Text("computing… %.0f %%".format(progress * 100), color = TXT_MUTED)
+            Text(
+                "first open of a ride replays all raw data once, then it's cached",
+                style = MaterialTheme.typography.bodySmall,
+                color = TXT_MUTED,
+            )
         }
 
         detailDim != null -> DimensionDetail(

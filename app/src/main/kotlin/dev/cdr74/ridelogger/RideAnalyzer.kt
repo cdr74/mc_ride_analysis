@@ -2,6 +2,8 @@ package dev.cdr74.ridelogger
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -48,33 +50,57 @@ object RideAnalyzer {
 
     private fun cacheFile(ride: File) = File(ride.parentFile, ride.name + ".analysis.json")
 
-    /** Load the cached analysis or compute (seconds of work — call off the main thread). */
-    fun get(context: Context, ride: File): Analysis {
+    /**
+     * Load the cached analysis or compute it. A 60-min ride is ~3 M IMU rows, so this
+     * takes tens of seconds on first open: call off the main thread, report progress
+     * (0..1 across both passes), and it cooperatively cancels with the caller's
+     * coroutine (leaving the screen aborts the work; nothing partial is cached).
+     */
+    suspend fun get(context: Context, ride: File, onProgress: (Float) -> Unit = {}): Analysis {
         val cache = cacheFile(ride)
         if (cache.exists()) {
             runCatching { return fromJson(JSONObject(cache.readText())) }
             // unreadable/stale cache falls through to recompute
         }
-        val analysis = analyze(context, ride)
+        val ctx = currentCoroutineContext()
+        val analysis = analyze(context, ride, onProgress) { ctx.ensureActive() }
         runCatching { cache.writeText(toJson(analysis).toString()) }
         return analysis
     }
 
-    private fun analyze(context: Context, ride: File): Analysis {
-        // pass 1: best calibration for this ride
+    private fun analyze(
+        context: Context,
+        ride: File,
+        onProgress: (Float) -> Unit,
+        checkActive: () -> Unit,
+    ): Analysis {
+        // pass 1: best calibration for this ride — raw sample means between GPS fixes,
+        // decimated ×4 (matches the analysis-side reference, calibrate.py, which also
+        // averages unfiltered samples; the ≥5 s window means don't need full rate)
         var solved: FloatArray? = null
         val calibrator = AutoCalibrator { r, _, _ -> solved = r }
-        run {
-            val est = LeanEstimator(
-                onOutput = {},
-                onStepSample = { a, g -> calibrator.onSample(a[0], a[1], a[2], g[0], g[1], g[2]) },
-            )
-            replay(ride, est, calibrator)
-        }
+        var decim = 0
+        val lastGyr = FloatArray(3)
+        replay(
+            ride,
+            onImu = { stream, _, x, y, z ->
+                if (stream == Config.STREAM_GYRO) {
+                    lastGyr[0] = x; lastGyr[1] = y; lastGyr[2] = z
+                } else if (++decim % 4 == 0) {
+                    calibrator.onSample(
+                        x.toDouble(), y.toDouble(), z.toDouble(),
+                        lastGyr[0].toDouble(), lastGyr[1].toDouble(), lastGyr[2].toDouble(),
+                    )
+                }
+            },
+            onGps = { t, speed, bearing -> calibrator.onGpsFix(t, speed, bearing) },
+            onProgress = { onProgress(it * 0.4f) },
+            checkActive = checkActive,
+        )
         val r = solved ?: CalibrationStore.load(context)
         if (solved != null) CalibrationStore.save(context, solved!!, 0, 0)
 
-        // pass 2: traces
+        // pass 2: traces through the causal estimator
         val tOut = ArrayList<Float>(20_000)
         val lean = ArrayList<Float>(20_000)
         val accel = ArrayList<Float>(20_000)
@@ -88,7 +114,26 @@ object RideAnalyzer {
             pitch.add(out.pitchDeg ?: Float.NaN)
         })
         if (r != null) est.setCalibration(r)
-        val gpsTrace = replay(ride, est, calibrator = null)
+        val gpsT = ArrayList<Float>(4000)
+        val gpsV = ArrayList<Float>(4000)
+        var gpsT0 = -1L
+        replay(
+            ride,
+            onImu = { stream, t, x, y, z ->
+                if (stream == Config.STREAM_ACCEL) est.onAccel(t, x, y, z) else est.onGyro(t, x, y, z)
+            },
+            onGps = { t, speed, _ ->
+                est.onGpsFix(speed)
+                if (speed != null) {
+                    if (gpsT0 < 0) gpsT0 = t
+                    gpsT.add((t - gpsT0) / 1e9f)
+                    gpsV.add(speed * 3.6f)
+                }
+            },
+            onProgress = { onProgress(0.4f + it * 0.6f) },
+            checkActive = checkActive,
+        )
+        val gpsTrace = Trace(gpsT.toFloatArray(), gpsV.toFloatArray())
 
         // speed stats from the GPS trace
         var dist = 0.0
@@ -118,13 +163,26 @@ object RideAnalyzer {
         )
     }
 
-    /** Streams IMU + GPS rows through the estimator/calibrator; returns the speed trace. */
-    private fun replay(ride: File, est: LeanEstimator, calibrator: AutoCalibrator?): Trace {
+    /**
+     * Streams bias-corrected accel/gyro rows and GPS fixes to the callbacks in time
+     * order. Uses one indexed cursor PER stream and merges them in code — the
+     * idx_imu(stream, t_ns) index cannot serve `WHERE stream IN (0,1) ORDER BY t_ns`,
+     * and asking SQLite to externally sort millions of rows on flash is what froze
+     * the first post-ride open of a long ride.
+     */
+    private fun replay(
+        ride: File,
+        onImu: (stream: Int, tNs: Long, x: Float, y: Float, z: Float) -> Unit,
+        onGps: (tNs: Long, speedMps: Float?, bearingDeg: Float?) -> Unit,
+        onProgress: (Float) -> Unit,
+        checkActive: () -> Unit,
+    ) {
         val db = SQLiteDatabase.openDatabase(ride.path, null, SQLiteDatabase.OPEN_READONLY)
-        val gpsT = ArrayList<Float>(4000)
-        val gpsV = ArrayList<Float>(4000)
         db.use {
-            // GPS fixes, consumed in time order alongside the IMU scan
+            val bounds = it.rawQuery("SELECT MIN(t_ns), MAX(t_ns) FROM imu WHERE stream=0", null)
+                .use { c -> if (c.moveToFirst()) c.getLong(0) to c.getLong(1) else return }
+            val spanNs = (bounds.second - bounds.first).coerceAtLeast(1)
+
             val gps = ArrayList<Triple<Long, Float?, Float?>>(4000)
             it.rawQuery("SELECT t_ns, speed, bearing FROM gps ORDER BY t_ns", null).use { c ->
                 while (c.moveToNext()) {
@@ -138,36 +196,42 @@ object RideAnalyzer {
                 }
             }
             var gi = 0
-            var gpsT0 = -1L
 
-            it.rawQuery(
-                "SELECT t_ns, stream, v0, v1, v2, b0, b1, b2 FROM imu WHERE stream IN (0,1) ORDER BY t_ns",
-                null,
-            ).use { c ->
-                while (c.moveToNext()) {
-                    val t = c.getLong(0)
-                    while (gi < gps.size && gps[gi].first <= t) {
-                        val (gt, speed, bearing) = gps[gi]
-                        est.onGpsFix(speed)
-                        calibrator?.onGpsFix(gt, speed, bearing)
-                        if (speed != null) {
-                            if (gpsT0 < 0) gpsT0 = gt
-                            gpsT.add((gt - gpsT0) / 1e9f)
-                            gpsV.add(speed * 3.6f)
+            val sql = "SELECT t_ns, v0, v1, v2, b0, b1, b2 FROM imu WHERE stream=%d ORDER BY t_ns"
+            it.rawQuery(sql.format(Config.STREAM_ACCEL), null).use { ca ->
+                it.rawQuery(sql.format(Config.STREAM_GYRO), null).use { cg ->
+                    var hasA = ca.moveToNext()
+                    var hasG = cg.moveToNext()
+                    var rows = 0
+                    fun emit(c: android.database.Cursor, stream: Int) {
+                        val t = c.getLong(0)
+                        while (gi < gps.size && gps[gi].first <= t) {
+                            val (gt, speed, bearing) = gps[gi]
+                            onGps(gt, speed, bearing)
+                            gi++
                         }
-                        gi++
+                        val bx = if (c.isNull(4)) 0f else c.getFloat(4)
+                        val by = if (c.isNull(5)) 0f else c.getFloat(5)
+                        val bz = if (c.isNull(6)) 0f else c.getFloat(6)
+                        onImu(stream, t, c.getFloat(1) - bx, c.getFloat(2) - by, c.getFloat(3) - bz)
+                        if (++rows % 100_000 == 0) {
+                            checkActive()
+                            onProgress(((t - bounds.first).toFloat() / spanNs).coerceIn(0f, 1f))
+                        }
                     }
-                    val bx = if (c.isNull(5)) 0f else c.getFloat(5)
-                    val by = if (c.isNull(6)) 0f else c.getFloat(6)
-                    val bz = if (c.isNull(7)) 0f else c.getFloat(7)
-                    val x = c.getFloat(2) - bx
-                    val y = c.getFloat(3) - by
-                    val z = c.getFloat(4) - bz
-                    if (c.getInt(1) == Config.STREAM_ACCEL) est.onAccel(t, x, y, z) else est.onGyro(t, x, y, z)
+                    while (hasA || hasG) {
+                        if (hasA && (!hasG || ca.getLong(0) <= cg.getLong(0))) {
+                            emit(ca, Config.STREAM_ACCEL)
+                            hasA = ca.moveToNext()
+                        } else {
+                            emit(cg, Config.STREAM_GYRO)
+                            hasG = cg.moveToNext()
+                        }
+                    }
                 }
             }
         }
-        return Trace(gpsT.toFloatArray(), gpsV.toFloatArray())
+        onProgress(1f)
     }
 
     // --- JSON cache (sidecar file, version-gated)
