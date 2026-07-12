@@ -46,6 +46,8 @@ data class LiveMetrics(
     val lean: LiveDim = LiveDim(),
     val accel: LiveDim = LiveDim(),
     val pitch: LiveDim = LiveDim(),
+    /** False until a phone→bike calibration (persisted or solved this ride) exists. */
+    val calibrated: Boolean = false,
 ) {
     operator fun get(dim: Dimension): LiveDim = when (dim) {
         Dimension.SPEED -> speed

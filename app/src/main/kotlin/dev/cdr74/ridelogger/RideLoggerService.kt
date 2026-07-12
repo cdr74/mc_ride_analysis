@@ -21,6 +21,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -57,6 +58,7 @@ class RideLoggerService : Service() {
     private var gps: GpsPipeline? = null
     private var writerJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var autoCalibrator: AutoCalibrator? = null
     private var startElapsedMs = 0L
     private var stopping = false
 
@@ -94,15 +96,52 @@ class RideLoggerService : Service() {
         store.putMeta("clock_anchor", clockAnchorJson())
         store.putMeta("mount", Config.MOUNT_DESCRIPTION)
 
+        // Live estimator chain (ui-mockup S2, ADR 0005): causal fused lean + accel +
+        // pitch, calibration persisted across rides and re-solved opportunistically.
+        // None of this touches the logging path — raw data stays authoritative.
+        val estimator = LeanEstimator(
+            onOutput = { out ->
+                live.update { m ->
+                    m.copy(
+                        lean = out.leanDeg?.let { m.lean.update(it) } ?: m.lean.copy(value = null),
+                        accel = out.accelMs2?.let { m.accel.update(it) } ?: m.accel.copy(value = null),
+                        pitch = out.pitchDeg?.let { m.pitch.update(it) } ?: m.pitch.copy(value = null),
+                    )
+                }
+            },
+            onStepSample = { acc, gyr ->
+                autoCalibrator?.onSample(acc[0], acc[1], acc[2], gyr[0], gyr[1], gyr[2])
+            },
+        )
+        autoCalibrator = AutoCalibrator { r, windows, events ->
+            CalibrationStore.save(this, r, windows, events)
+            estimator.setCalibration(r)
+            live.update { it.copy(calibrated = true) }
+        }
+        val storedCalibration = CalibrationStore.load(this)
+        if (storedCalibration != null) estimator.setCalibration(storedCalibration)
+        live.value = LiveMetrics(calibrated = storedCalibration != null)
+
         val sensors = SensorPipeline(
             getSystemService(Context.SENSOR_SERVICE) as SensorManager, ring,
+            tap = object : SensorPipeline.Tap {
+                override fun onAccel(tNs: Long, x: Float, y: Float, z: Float) =
+                    estimator.onAccel(tNs, x, y, z)
+                override fun onGyro(tNs: Long, x: Float, y: Float, z: Float) =
+                    estimator.onGyro(tNs, x, y, z)
+            },
         ).also { this.sensors = it }
         val streamInfo = sensors.start()
 
-        live.value = LiveMetrics()
         val gps = GpsPipeline(this, store, onFix = { loc ->
-            if (loc.hasSpeed()) {
-                live.value = live.value.copy(speed = live.value.speed.update(loc.speed * 3.6f))
+            val speed = if (loc.hasSpeed()) loc.speed else null
+            estimator.onGpsFix(speed)
+            autoCalibrator?.onGpsFix(
+                loc.elapsedRealtimeNanos, speed,
+                if (loc.hasBearing()) loc.bearing else null,
+            )
+            if (speed != null) {
+                live.update { it.copy(speed = it.speed.update(speed * 3.6f)) }
             }
         }).also { this.gps = it }
         val rawSupported = gps.start()

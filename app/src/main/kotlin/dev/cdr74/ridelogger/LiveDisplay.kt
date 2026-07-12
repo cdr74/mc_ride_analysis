@@ -60,7 +60,7 @@ fun LiveDisplayScreen(
         slots.filterNotNull().ifEmpty { listOf(Dimension.SPEED) }.forEachIndexed { i, dim ->
             if (i > 0) HorizontalDivider()
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                DimensionSlot(dim, metrics[dim])
+                DimensionSlot(dim, metrics[dim], metrics.calibrated)
             }
         }
         Button(
@@ -77,13 +77,14 @@ fun LiveDisplayScreen(
 }
 
 @Composable
-fun DimensionSlot(dim: Dimension, live: LiveDim) {
+fun DimensionSlot(dim: Dimension, live: LiveDim, calibrated: Boolean = true) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(dim.label, fontSize = 14.sp, color = TXT_MUTED, letterSpacing = 2.sp)
+        val hint = if (!calibrated && dim != Dimension.SPEED) " · calibrating…" else ""
+        Text(dim.label + hint, fontSize = 14.sp, color = TXT_MUTED, letterSpacing = 2.sp)
         Text(
             text = numeral(dim, live.value),
             fontSize = 84.sp,
