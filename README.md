@@ -1,9 +1,27 @@
 # mc_ride_analysis — RideLogger
 
-Throwaway Android app that logs raw IMU (accel/gyro/mag at max rate), GPS/GNSS and
-barometer from a bar-mounted phone to one SQLite file per motorcycle ride, for offline
-sensor-fusion development in Python. See `DESIGN.md` for the authoritative spec and
-`CLAUDE.md` for working rules.
+Motorcycle ride telemetry, built data-first: a phone on the bars records research-grade
+raw sensor data; calibration and sensor fusion are developed and validated offline in
+Python; only then does the validated estimator go back into the app as a **ride
+display** — live lean / acceleration / pitch / speed while riding, full per-dimension
+analysis after. See `DESIGN.md` for the authoritative spec and `CLAUDE.md` for working
+rules.
+
+## Phases (ADR 0005)
+
+1. **✅ Raw logger** (Android app 0.2.x, released): IMU at the device's max rate
+   (~400 Hz on the Pixel 8) + GPS/GNSS + barometer → one SQLite file per ride, built to
+   never drop or alter a sample. Calibration is solved automatically from riding data —
+   no user action (ADR 0004).
+2. **▶ Offline fusion** (`analysis/fusion/`, in progress): phone→bike calibration,
+   Madgwick + GPS-aided lean estimation, validated against the on-device rotation-vector
+   baseline on real rides. Lean is never reported below 18 km/h (bar-mount steering
+   coupling).
+3. **Ride display** (next app version, spec in `docs/ui-mockup.md`): live view of two
+   chosen dimensions as glanceable bars with session high-watermarks, post-ride
+   per-dimension traces — safety first, minimal text, zero interaction while moving.
+4. *Planned:* a minimal iOS logger writing the same ride-file format, to collect data
+   from more bikes and riders.
 
 ## Layout
 
@@ -11,6 +29,7 @@ sensor-fusion development in Python. See `DESIGN.md` for the authoritative spec 
 - `analysis/schema.md` — ride-file schema, the app↔Python contract
 - `analysis/validate_ride.py` — ride-file validation (gaps, monotonicity, meta, drops)
 - `analysis/calibrate.py` — solves the phone→bike rotation (automatic from ride phases; tagged segments in legacy files)
+- `analysis/fusion/` — offline estimators: Madgwick port, GPS-aided lean, causal ride-display candidate
 - `docs/adr/` — decision notes when code diverges from the spec
 - `docs/ui-mockup.md` — approved UI spec for the next app version (ride display)
 - `data/` — local ride files + solved calibrations (gitignored, ~100 MB+ per ride)

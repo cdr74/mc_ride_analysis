@@ -64,13 +64,16 @@ def load_stream(db: sqlite3.Connection, stream: int) -> np.ndarray:
 
 
 def resample(t_ns: np.ndarray, v: np.ndarray, grid_s: np.ndarray,
-             lpf: bool = True) -> np.ndarray:
-    """Low-pass (zero-phase) then linear-interp columns of v onto grid_s (seconds)."""
+             lpf: bool = True, causal: bool = False) -> np.ndarray:
+    """Low-pass then linear-interp columns of v onto grid_s (seconds).
+
+    Zero-phase (offline reference) by default; causal=True uses a forward-only filter,
+    matching what the on-device port can do."""
     t = t_ns / 1e9
     fs_in = (len(t) - 1) / (t[-1] - t[0])
     if lpf and fs_in > 4 * LPF_HZ:
         sos = signal.butter(4, LPF_HZ, fs=fs_in, output="sos")
-        v = signal.sosfiltfilt(sos, v, axis=0)
+        v = signal.sosfilt(sos, v, axis=0) if causal else signal.sosfiltfilt(sos, v, axis=0)
     return np.column_stack([np.interp(grid_s, t, v[:, i]) for i in range(v.shape[1])])
 
 
@@ -149,28 +152,55 @@ def main() -> int:
     # --- fused: integrate bike-frame roll rate, correct toward kinematic (moving)
     #     or gravity roll (stationary); the ride-display candidate
     roll_grav = np.arctan2(-(-a_b[:, 1]), a_b[:, 2])    # accel 'up' → down = -a
-    k = dt / TAU_CORR
-    fused = np.empty(n)
-    phi = roll_grav[0]
-    for i in range(n):
-        phi += w_b[i, 0] * dt
-        target = roll_kin[i] if v[i] > LEAN_MIN_SPEED else roll_grav[i]
-        phi += k * (target - phi)
-        fused[i] = phi
+    def complementary(w_bike: np.ndarray, kin: np.ndarray, grav: np.ndarray) -> np.ndarray:
+        k = dt / TAU_CORR
+        out = np.empty(n)
+        phi = grav[0]
+        for i in range(n):
+            phi += w_bike[i, 0] * dt
+            target = kin[i] if v[i] > LEAN_MIN_SPEED else grav[i]
+            phi += k * (target - phi)
+            out[i] = phi
+        return out
+
+    fused = complementary(w_b, roll_kin, roll_grav)
+
+    # --- fused_causal: identical structure, every filter forward-only — what the
+    #     on-device (M6) port can actually compute in real time
+    a_c = (resample(acc[:, 0], acc[:, 1:4], grid, causal=True)) @ R.T
+    w_c = (resample(gyr[:, 0], gyr[:, 1:4], grid, causal=True)) @ R.T
+    roll_kin_c = signal.sosfilt(sos_kin, np.arctan2(-v * w_c[:, 2], G))
+    roll_grav_c = np.arctan2(a_c[:, 1], a_c[:, 2])
+    fused_causal = complementary(w_c, roll_kin_c, roll_grav_c)
 
     # --- metrics; lean does not exist below the speed cutoff
     mask = v > LEAN_MIN_SPEED
     fused_out = np.where(mask, fused, np.nan)
+    fused_causal_out = np.where(mask, fused_causal, np.nan)
     def rms(x): return degrees(sqrt(float(np.mean(x[mask] ** 2))))
     deg = np.degrees
     print(f"\nlean cutoff: speed > {LEAN_MIN_SPEED:.0f} m/s ({LEAN_MIN_SPEED * 3.6:.0f} km/h) "
           f"covers {100 * mask.mean():.0f} % of samples")
     print(f"{'estimator':<11} {'max L':>7} {'max R':>7} {'RMS vs rotvec':>14} {'RMS vs kin':>11}")
     for name, r in (("madgwick", roll_mad), ("rotvec", roll_rv),
-                    ("kinematic", roll_kin), ("fused", fused)):
+                    ("kinematic", roll_kin), ("fused", fused),
+                    ("fused_causal", fused_causal)):
         rm = deg(r[mask])
-        print(f"{name:<11} {rm.min():7.1f} {rm.max():7.1f} "
+        print(f"{name:<12} {rm.min():7.1f} {rm.max():7.1f} "
               f"{rms(r - roll_rv):14.2f} {rms(r - roll_kin):11.2f}")
+
+    # causal cost: accuracy + lag vs the zero-phase reference
+    d = fused_causal - fused
+    lags = np.arange(-100, 101)  # ±1 s at 100 Hz
+    f0 = np.where(mask, fused, 0.0) - fused[mask].mean()
+    fc = np.where(mask, fused_causal, 0.0) - fused_causal[mask].mean()
+    xc = [float(np.dot(fc[max(0, L):n + min(0, L)], f0[max(0, -L):n - max(0, L)]))
+          for L in lags]
+    lag_ms = 10.0 * lags[int(np.argmax(xc))]
+    print(f"\ncausal cost: {rms(d):.2f}° RMS vs zero-phase reference, "
+          f"lag ≈ {lag_ms:.0f} ms, peak loss L/R "
+          f"{deg(fused_causal[mask]).min() - deg(fused[mask]).min():+.1f}° / "
+          f"{deg(fused_causal[mask]).max() - deg(fused[mask]).max():+.1f}°")
     print(f"\npitch (madgwick vs rotvec) RMS: {rms(pitch_mad - pitch_rv):.2f}° "
           f"— small-pitch is suspension-contaminated (DESIGN.md §11)")
 
@@ -178,7 +208,8 @@ def main() -> int:
         np.savez_compressed(
             args.npz, t=grid, speed=v, lean_valid=mask,
             roll_madgwick=roll_mad, roll_rotvec=roll_rv,
-            roll_kinematic=roll_kin, roll_fused=fused_out, pitch_madgwick=pitch_mad,
+            roll_kinematic=roll_kin, roll_fused=fused_out,
+            roll_fused_causal=fused_causal_out, pitch_madgwick=pitch_mad,
             pitch_rotvec=pitch_rv)
         print(f"wrote {args.npz}")
     return 0
