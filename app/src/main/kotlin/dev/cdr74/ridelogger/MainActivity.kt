@@ -11,6 +11,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -127,6 +129,17 @@ private fun MainScreen() {
         }
     }
 
+    // Post-ride navigation: opened by tapping a ride, and automatically after STOP
+    // (ui-mockup S3a). A ride in progress always wins the screen.
+    var openRide by remember { mutableStateOf<File?>(null) }
+    var wasRunning by remember { mutableStateOf(status.running) }
+    LaunchedEffect(status.running) {
+        if (wasRunning && !status.running) {
+            openRide = RideExporter.closedRides(context, null).firstOrNull()
+        }
+        wasRunning = status.running
+    }
+
     if (status.running) {
         val live by RideLoggerService.live.collectAsState()
         // Rider chose a screen-on live display: keep it on for the whole ride.
@@ -140,6 +153,14 @@ private fun MainScreen() {
             },
         )
         return
+    }
+
+    openRide?.let { file ->
+        if (file.exists()) {
+            PostRideScreen(file = file, onClose = { openRide = null })
+            return
+        }
+        openRide = null
     }
 
     Column(
@@ -184,7 +205,7 @@ private fun MainScreen() {
             RideExporter.closedRides(context, null)
         }
         rides.forEach { file ->
-            RideRow(file = file, onChanged = { rideListVersion++ })
+            RideRow(file = file, onOpen = { openRide = file }, onChanged = { rideListVersion++ })
         }
         if (rides.isEmpty()) {
             Text("No closed rides yet.", style = MaterialTheme.typography.bodyMedium)
@@ -337,7 +358,7 @@ private fun StartCard(
 }
 
 @Composable
-private fun RideRow(file: File, onChanged: () -> Unit) {
+private fun RideRow(file: File, onOpen: () -> Unit, onChanged: () -> Unit) {
     val context = LocalContext.current
     var confirmDelete by remember { mutableStateOf(false) }
 
@@ -345,7 +366,7 @@ private fun RideRow(file: File, onChanged: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f).clickable { onOpen() }) {
             Text(file.name, style = MaterialTheme.typography.bodySmall)
             Text("%.1f MB".format(file.length() / 1e6), style = MaterialTheme.typography.bodySmall)
         }

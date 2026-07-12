@@ -59,6 +59,7 @@ object RideExporter {
     fun delete(file: File) {
         File(file.parentFile, file.name + "-wal").delete()
         File(file.parentFile, file.name + "-shm").delete()
+        File(file.parentFile, file.name + ".analysis.json").delete() // cached post-ride analysis
         file.delete()
     }
 }
