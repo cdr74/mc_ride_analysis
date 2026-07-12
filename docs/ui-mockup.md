@@ -126,6 +126,9 @@ Spec notes:
   as an even fainter tick — say if wanted.)*
 - Numeral above each bar is kept for the deliberate glance; the bar + watermark is the
   peripheral channel. *(Q1a: keep numerals, or bars only?)*
+- **Lean below 18 km/h is not shown** (bar empty, numeral "—"): the bar-mounted phone
+  moves with the steering assembly, and bar turn corrupts lean at low speed
+  (DESIGN.md §11). Same cutoff post-ride: the lean trace has gaps below 18 km/h.
 - *(Q1b: should the bar change color as it approaches the watermark / a personal max —
   neutral → amber → red — or stay one high-contrast color?)*
 

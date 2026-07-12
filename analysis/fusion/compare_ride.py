@@ -19,8 +19,11 @@ Estimators, all in the bike frame (calibration from analysis/calibrate.py):
              (nearly) stationary. This is the candidate ride-display estimator.
 
 Sign convention: positive roll = lean to the RIGHT (bike y points left).
-Low-speed segments (< 5 m/s) are masked in metrics: steering-angle coupling makes the
-bar-mounted phone untrustworthy there (DESIGN.md §11).
+
+Lean is NOT PRODUCED below LEAN_MIN_SPEED (5 m/s = 18 km/h): steering-angle coupling on
+the bar-mounted phone makes it untrustworthy there (DESIGN.md §11). Below the cutoff the
+fused filter corrects toward gravity roll (stays bounded, re-converges instantly above
+the cutoff) and the reported fused lean is NaN; metrics use the same mask.
 
 Usage: uv run compare_ride.py ride.db [--calib calib.json] [--npz out.npz]
 """
@@ -45,8 +48,8 @@ import calibrate                        # noqa: E402
 FS = 100.0            # uniform processing rate, Hz (fusion band is < 10 Hz)
 LPF_HZ = 15.0         # anti-alias low-pass before resampling from ~400 Hz
 G = 9.80665
-V_MASK = 5.0          # m/s — metrics mask, low-speed segments untrusted
-V_STILL = 3.0         # m/s — below this the fused filter corrects toward gravity
+LEAN_MIN_SPEED = 5.0  # m/s (18 km/h) — no lean below this: bar-turn coupling (§11)
+KIN_LPF_HZ = 1.5      # kinematic-lean bandwidth; yaw spikes above this are not lean
 TAU_CORR = 2.0        # s  — complementary-filter correction time constant
 BETA = 0.05           # Madgwick gain
 
@@ -136,8 +139,12 @@ def main() -> int:
     roll_rv, pitch_rv = roll_pitch_from_down(down_rv @ R.T)
 
     # --- kinematic GPS-aided lean: φ = atan(v·ψ̇/g), ψ̇ ≈ bike-frame yaw rate
-    #     positive yaw rate (left turn, z up) → lean left → negative roll
-    roll_kin = np.arctan2(-v * w_b[:, 2], G)
+    #     positive yaw rate (left turn, z up) → lean left → negative roll.
+    #     Low-passed to the physical lean bandwidth: sub-second yaw spikes (bumps,
+    #     quick flicks) are transients, not lean — unfiltered they read as ±40°
+    #     phantom peaks. (On-device this must become a causal filter.)
+    sos_kin = signal.butter(2, KIN_LPF_HZ, fs=FS, output="sos")
+    roll_kin = signal.sosfiltfilt(sos_kin, np.arctan2(-v * w_b[:, 2], G))
 
     # --- fused: integrate bike-frame roll rate, correct toward kinematic (moving)
     #     or gravity roll (stationary); the ride-display candidate
@@ -147,15 +154,17 @@ def main() -> int:
     phi = roll_grav[0]
     for i in range(n):
         phi += w_b[i, 0] * dt
-        target = roll_kin[i] if v[i] > V_STILL else roll_grav[i]
+        target = roll_kin[i] if v[i] > LEAN_MIN_SPEED else roll_grav[i]
         phi += k * (target - phi)
         fused[i] = phi
 
-    # --- metrics
-    mask = v > V_MASK
+    # --- metrics; lean does not exist below the speed cutoff
+    mask = v > LEAN_MIN_SPEED
+    fused_out = np.where(mask, fused, np.nan)
     def rms(x): return degrees(sqrt(float(np.mean(x[mask] ** 2))))
     deg = np.degrees
-    print(f"\nmask: speed > {V_MASK:.0f} m/s covers {100 * mask.mean():.0f} % of samples")
+    print(f"\nlean cutoff: speed > {LEAN_MIN_SPEED:.0f} m/s ({LEAN_MIN_SPEED * 3.6:.0f} km/h) "
+          f"covers {100 * mask.mean():.0f} % of samples")
     print(f"{'estimator':<11} {'max L':>7} {'max R':>7} {'RMS vs rotvec':>14} {'RMS vs kin':>11}")
     for name, r in (("madgwick", roll_mad), ("rotvec", roll_rv),
                     ("kinematic", roll_kin), ("fused", fused)):
@@ -167,8 +176,9 @@ def main() -> int:
 
     if args.npz:
         np.savez_compressed(
-            args.npz, t=grid, speed=v, roll_madgwick=roll_mad, roll_rotvec=roll_rv,
-            roll_kinematic=roll_kin, roll_fused=fused, pitch_madgwick=pitch_mad,
+            args.npz, t=grid, speed=v, lean_valid=mask,
+            roll_madgwick=roll_mad, roll_rotvec=roll_rv,
+            roll_kinematic=roll_kin, roll_fused=fused_out, pitch_madgwick=pitch_mad,
             pitch_rotvec=pitch_rv)
         print(f"wrote {args.npz}")
     return 0

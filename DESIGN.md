@@ -299,7 +299,7 @@ No settings screen in MVP. Constants live in one `Config.kt`.
 | Mic privacy toggle OFF silently caps sensors at ≤200 Hz (Android 12+, overrides HIGH_SAMPLING_RATE_SENSORS) | check `SensorPrivacyManager` / warn in UI if measured rate ≪ expected; keep mic toggle on during rides |
 | OEM throttles sensors with screen off | wakelock + foreground; field checklist §9; fallback: keep screen on dim. (Target device Pixel 8: stock Android, no OEM killer — low risk) |
 | Vibration aliasing / mount resonance | **bar mount = worst case on the CP2 twin**: damped mount mandatory; log mount description; inspect PSD offline before trusting any ride |
-| Steering angle couples into roll/yaw (bar mount, ~24–25° rake) | negligible at speed (δ of a few degrees ⇒ ~1–2° roll error); **large at slow speed / full lock** — offline: detect via low GPS speed + gyro/GPS-roll disagreement and mask; do NOT trust lean angle in slow-speed segments |
+| Steering angle couples into roll/yaw (bar mount, ~24–25° rake) | negligible at speed (δ of a few degrees ⇒ ~1–2° roll error); **large at slow speed / full lock**. Decided 2026-07-12: lean is **not produced below 18 km/h (5 m/s)** anywhere — fusion outputs NaN, displays blank the lean slot/trace; above that speed bar turn is small enough |
 | Fork travel (dive/squat) couples into pitch (bar mount) | wheelie signal (10–40°) dominates dive/squat (~2–4°); treat small-pitch analysis as suspension-contaminated |
 | Magnetometer unusable near engine | expected; mag is logged but fusion must not depend on it |
 | Thermal throttling on hot days reduces rate | rate re-measured continuously; gap analysis flags it |
