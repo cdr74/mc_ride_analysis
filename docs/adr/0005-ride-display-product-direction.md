@@ -32,6 +32,12 @@ workflow: the .md mockup is iterated and approved before any UI code is written)
   for algorithm work happens post-ride if ever needed).
 - Units: m/s² for acceleration everywhere (same raw unit as the log).
 - Export to PC stays developer-only; rides deletable anytime.
+- **Calibration persistence (addendum 2026-07-12):** the app stores the last solved
+  R_phone→bike and uses it from ride start (remount repeatability ~1.25°, ADR 0004),
+  re-solving opportunistically during the ride. On a never-calibrated device the
+  calibration-dependent bars show "calibrating…" until the first solve; speed always works.
+- Lean is never produced below 18 km/h (bar-turn coupling, DESIGN.md §11) — live bar
+  blank, post-ride trace gapped.
 
 ## What does not change
 

@@ -129,6 +129,12 @@ Spec notes:
 - **Lean below 18 km/h is not shown** (bar empty, numeral "—"): the bar-mounted phone
   moves with the steering assembly, and bar turn corrupts lean at low speed
   (DESIGN.md §11). Same cutoff post-ride: the lean trace has gaps below 18 km/h.
+- **Calibration availability at ride start:** lean/accel/pitch bars need R_phone→bike.
+  The app persists the last solved calibration and reuses it from the first second
+  (valid — remount repeatability measured at ~1.25°), then re-solves opportunistically
+  during the ride and swaps in the fresh solution. Very first ride on a device: those
+  slots show "calibrating…" (blank bar) until the first solve lands, a few minutes in.
+  Speed needs no calibration and always works.
 - *(Q1b: should the bar change color as it approaches the watermark / a personal max —
   neutral → amber → red — or stay one high-contrast color?)*
 

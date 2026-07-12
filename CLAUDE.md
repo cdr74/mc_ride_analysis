@@ -17,12 +17,15 @@ implementing anything. If code and `DESIGN.md` diverge, `DESIGN.md` wins; update
 ADR note in `docs/adr/` when a decision changes.
 
 **Project phase (since 2026-07-12):** the MVP definition of done is met (2 validated rides
-in local `data/`, gitignored). Current phase is **offline fusion development** in
-`analysis/fusion/` (DESIGN.md §12 M5). The next app version is a "ride display"
-(ADR 0005, UI spec `docs/ui-mockup.md` — mockup is iterated and approved *before* UI code);
-it drops guided calibration and markers entirely (ADR 0004 — calibration is automatic
-from ride phases, solved by `analysis/calibrate.py`). The "no on-device fusion" rule below
-holds until M5 is validated; the M6 app then ports the validated offline filter.
+in local `data/`, gitignored). Offline fusion (M5, `analysis/fusion/`) is essentially
+validated — estimators cross-agree, causal live variant costs 0.35° RMS / 40 ms; wheelie
+data still outstanding. Current work is **M6: the "ride display" app version**
+(ADR 0005, UI spec `docs/ui-mockup.md` — the mockup was iterated and approved before UI
+code; follow it exactly). M6 drops guided calibration and markers entirely (ADR 0004 —
+calibration is automatic from ride phases, `analysis/calibrate.py` is the reference) and
+ports the validated **causal** fused estimator to Kotlin — the Python implementation in
+`analysis/fusion/compare_ride.py` is the reference; verify the port by comparing traces
+over the same ride file.
 
 ## Non-negotiable data-integrity rules
 

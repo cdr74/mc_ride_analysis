@@ -235,6 +235,11 @@ offline (§11), not in the app.
 slow ride) → reuse the most recent solved calibration for the same mount, at reduced
 confidence. A ride with no usable phases is still valid raw data.
 
+**On-device (M6 ride display):** the app persists the last solved calibration and uses
+it from ride start (remount repeatability measured at ~1.25°, 2026-07-12), re-solving
+opportunistically during the ride. Calibration-dependent live dimensions (lean,
+accel/brake, pitch) stay blank on a never-calibrated device until the first solve.
+
 **Legacy (app ≤ 0.2.x):** rides tagged by the guided hands-free flow (ADR 0003 —
 `calib_start`/`calib_end` markers with `static_level`/`accel`/`brake` notes) remain
 supported; `analysis/calibrate.py` solves from tagged segments and the tagged result
@@ -320,5 +325,5 @@ same ride file — deferred; would validate but not block the MVP.
 | M2 | UI, markers, guided hands-free calibration, export | full workflow on device, gloves on ✔ |
 | M3 | Field hardening | §9 checklist green on target phone ✔ (2026-07-12) |
 | M4 | First instrumented rides + analysis kickoff | rides archived, validated, calibration solved ✔ (2026-07-12, 2 rides / 54.6 km) |
-| M5 | Offline fusion validated (`analysis/fusion/`) | roll estimator agrees with rotvec baseline on real rides (speed > 5 m/s mask); wheelie/pitch plausible |
+| M5 | Offline fusion validated (`analysis/fusion/`) | roll estimator agrees with rotvec baseline on real rides (speed > 5 m/s mask); wheelie/pitch plausible. *Status 2026-07-12: four estimators cross-agree (max lean ±23–28° both rides, Madgwick↔rotvec 1.8–2.2° RMS); causal live variant costs 0.35° RMS / 40 ms; pending rider corner-validation; wheelie data outstanding (needs the supermoto dataset)* |
 | M6 | Ride-display app version (`docs/ui-mockup.md`, ADR 0004/0005) | post-ride view + live bars on device; guided calib & markers removed |
