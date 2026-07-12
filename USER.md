@@ -166,8 +166,9 @@ python3 analysis/validate_ride.py ride_20260711T093005Z_0a1b2c3d.db
 ```
 
 Checks metadata completeness, monotonic timestamps, sensor gaps (> 100 ms fails),
-drop percentage (> 0.1 % fails), GPS rate and speed-accuracy coverage, and that the
-calibration markers are balanced. `PASS` → archive the file; `FAIL` → read the output,
+drop percentage (> 0.1 % fails), and GPS rate and speed-accuracy coverage. (It also
+warns about untagged calibration on rides from app ≤ 0.2.x — harmless and expected on
+0.3.0 rides, which never contain markers.) `PASS` → archive the file; `FAIL` → read the output,
 usually it's a crash-terminated ride or a sensor-rate problem worth fixing before the
 next ride. The file format itself is documented in `analysis/schema.md`.
 

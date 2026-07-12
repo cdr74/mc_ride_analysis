@@ -1,7 +1,8 @@
 # UI mockup — RideLogger "ride display" version (draft for discussion)
 
-Status: **draft, nothing implemented.** Iterate on this document until the design is
-nailed; only then code. Product decisions already made (2026-07-12):
+Status: **implemented in v0.3.0 (2026-07-12).** This document is the UI spec of record —
+it was iterated and approved before any code, and any future UI change goes through it
+first. Product decisions made 2026-07-12:
 
 - **No active calibration.** Guided calib flow (ADR 0003) is retired; calibration is solved
   automatically from ride phases. No calibration UI anywhere.
@@ -229,5 +230,5 @@ row reuses the live-display bar grammar (fill = session max reach, ticks = extre
 | Q4 | Accel unit | ✔ m/s² |
 | Q5 | Map / geo display | ✔ none — a ride is a time series |
 | Q6 | Analytics scope | ✔ v1 as mocked; fancy analytics later |
-| Q7 | Marker button | ✔ **removed altogether** — no marker button, no marker concept in the next version (ground-truth labeling for algorithm work, if ever needed, happens post-ride, not with a button while riding) |
+| Q7 | Marker button | ✔ **removed altogether** in 0.3.0 — no marker button, no marker concept (ground-truth labeling for algorithm work, if ever needed, happens post-ride, not with a button while riding) |
 | Q8 | Home ready-status | ✔ "Initializing…" until ready, then START appears; comprehensive error screen if permissions/functionality missing; diagnostics in dev builds only |

@@ -2,11 +2,11 @@
 
 Status: Draft 1.1 · Owner: Chris · Last updated: 2026-07-12
 
-> **Direction update (2026-07-12):** the MVP data-collection goal is met. The next app
-> version becomes a **ride display** (ADR 0005, UI spec in `docs/ui-mockup.md`) and
-> calibration becomes fully automatic from ride phases (ADR 0004 — guided flow and the
-> marker concept are retired). Sections below describe the shipped MVP (app 0.2.x);
-> forward-looking changes are marked inline.
+> **Direction update (2026-07-12):** the MVP data-collection goal is met, and the
+> **ride-display version shipped the same day as v0.3.0** (ADR 0005, UI spec in
+> `docs/ui-mockup.md`): calibration is fully automatic from ride phases (ADR 0004 —
+> guided flow and the marker concept are gone), live bars + post-ride views are in.
+> Field verification of 0.3.0 per §9 is still outstanding.
 
 ---
 
@@ -32,8 +32,8 @@ device-agnostic, but the §9 checklist is validated against this device.
 ### 1.2 Non-goals (MVP)
 
 - No on-device fusion, lean-angle display, or live telemetry.
-  *(Both arrive in the next version — but only after the offline filter is validated;
-  phasing in ADR 0005.)*
+  *(These MVP non-goals ended with 0.3.0: the offline filter was validated first, then
+  ported — phasing in ADR 0005.)*
 - No iOS version, no cloud sync, no accounts.
 - No map rendering; GPS is logged, not visualized. *(Permanent decision as of ADR 0005:
   a ride is a data series over time, no geo display in any version.)*
@@ -53,11 +53,12 @@ cross-platform app is built only after the offline filter is validated.
 ┌─────────────────────────── Android device ───────────────────────────┐
 │                                                                      │
 │  MainActivity (Compose)                                              │
-│    start/stop · marker button · live status (rates, GPS fix, drops)  │
-│         │ StateFlow<SessionStatus>                                   │
+│    startup checks · live bar display · post-ride views · ride list   │
+│         │ StateFlow<SessionStatus> + StateFlow<LiveMetrics>          │
 │         ▼                                                            │
 │  RideLoggerService (foreground, type=location)                       │
 │    ├── SensorPipeline ── HandlerThread ──► RingBuffer ─┐             │
+│    │        └─ tap ─► LeanEstimator/AutoCalibrator (live only)       │
 │    ├── GpsPipeline    ── main looper cb ──────────────►│             │
 │    └── RideStore ◄── writer coroutine (drain ≤500 ms) ─┘             │
 │              │                                                       │
@@ -194,9 +195,8 @@ the first sensor row.
    notification (elapsed time, GPS fix state, drop count).
 2. **Running:** screen may be off. Service type `location` + wakelock + FASTEST sensor
    registration keeps delivery alive through Doze; verify on the target device (§9).
-3. **Marker:** UI button and notification action insert a `marker(kind='user')` row —
-   pressed at ride events worth finding later (wheelie attempt, specific corner).
-   *(Retired in the next version — the marker concept is removed altogether, ADR 0005.)*
+3. **Markers: removed as of 0.3.0** (ADR 0005). The `marker` table stays in schema v1
+   for legacy files; new rides contain no rows.
 4. **Stop:** unregister sensors → drain ring buffer → final drop counts + second clock anchor +
    `clean_close=true` → checkpoint WAL → close DB → stop foreground.
 5. **Crash/kill:** WAL guarantees the file is readable minus the last uncommitted batch;
@@ -248,25 +248,25 @@ are in `analysis/schema.md`.
 
 ---
 
-## 8. UI (deliberately minimal)
+## 8. UI (ride display, shipped in 0.3.0)
 
-> Next version: the UI is redesigned as a ride display — live bars, post-ride views,
-> three-state startup. Spec: **`docs/ui-mockup.md`** (ADR 0005). Below is the shipped
-> MVP UI (app 0.2.x).
+The authoritative UI spec is **`docs/ui-mockup.md`** (ADR 0005) — approved mockup-first,
+implemented exactly; any UI change goes through the mockup before code. In brief:
 
-Single screen, Compose:
+- **Startup:** "Initializing…" while sensors probe and GPS acquires → the green START
+  button appearing is the ready signal; a comprehensive error card (permissions,
+  location off, mic-toggle rate cap) with a fix button per issue otherwise.
+- **Home:** START, live-slot picker (two chips cycling lean/accel/pitch/speed/off),
+  screen-mode choice (live display / background), ride list (tap = review,
+  share/save/delete).
+- **Live display:** the two chosen dimensions as huge numerals + fill bars with session
+  high-watermark ticks; subtle color shift near the session max; full-width STOP.
+  Lean blank below 18 km/h (§11). Bars ignore touches while moving.
+- **Post-ride:** opens automatically after STOP — all-dimension summary, tap-through to
+  pinch-zoomable traces with tap readout and an extremes jump list.
 
-- Big **Start / Stop** button (large touch target, glove-friendly).
-- Status block: per-stream measured Hz, GPS fix + accuracy + sat count, dropped events,
-  elapsed time, file size.
-- **Marker** button (full-width, high contrast).
-- **Calibrate** — one start/cancel button; the hands-free flow of §7 runs on its own,
-  beeping on every phase transition and taking over the whole screen with one solid
-  color + one huge word per phase (readable at a glance, §7). Screen kept on at full
-  brightness only while calibration runs.
-- Ride list: closed rides with size/duration, share + delete actions.
-
-No settings screen in MVP. Constants live in one `Config.kt`.
+No settings screen. Constants live in one `Config.kt`; UI choices persist in
+SharedPreferences next to where they're used.
 
 ---
 
@@ -326,4 +326,4 @@ same ride file — deferred; would validate but not block the MVP.
 | M3 | Field hardening | §9 checklist green on target phone ✔ (2026-07-12) |
 | M4 | First instrumented rides + analysis kickoff | rides archived, validated, calibration solved ✔ (2026-07-12, 2 rides / 54.6 km) |
 | M5 | Offline fusion validated (`analysis/fusion/`) | roll estimator agrees with rotvec baseline on real rides (speed > 5 m/s mask); wheelie/pitch plausible. *Status 2026-07-12: four estimators cross-agree (max lean ±23–28° both rides, Madgwick↔rotvec 1.8–2.2° RMS); causal live variant costs 0.35° RMS / 40 ms; pending rider corner-validation; wheelie data outstanding (needs the supermoto dataset)* |
-| M6 | Ride-display app version (`docs/ui-mockup.md`, ADR 0004/0005) | post-ride view + live bars on device; guided calib & markers removed |
+| M6 | Ride-display app version (`docs/ui-mockup.md`, ADR 0004/0005) | post-ride view + live bars on device; guided calib & markers removed. ✔ implemented + released v0.3.0 (2026-07-12); **field verification per §9 outstanding** |

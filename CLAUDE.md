@@ -16,16 +16,26 @@ The authoritative technical specification is **`DESIGN.md`** in the repo root. R
 implementing anything. If code and `DESIGN.md` diverge, `DESIGN.md` wins; update it via a short
 ADR note in `docs/adr/` when a decision changes.
 
-**Project phase (since 2026-07-12):** the MVP definition of done is met (2 validated rides
-in local `data/`, gitignored). Offline fusion (M5, `analysis/fusion/`) is essentially
-validated — estimators cross-agree, causal live variant costs 0.35° RMS / 40 ms; wheelie
-data still outstanding. Current work is **M6: the "ride display" app version**
-(ADR 0005, UI spec `docs/ui-mockup.md` — the mockup was iterated and approved before UI
-code; follow it exactly). M6 drops guided calibration and markers entirely (ADR 0004 —
-calibration is automatic from ride phases, `analysis/calibrate.py` is the reference) and
-ports the validated **causal** fused estimator to Kotlin — the Python implementation in
-`analysis/fusion/compare_ride.py` is the reference; verify the port by comparing traces
-over the same ride file.
+## Docs-in-sync rule (non-negotiable, added 2026-07-12 after a violation)
+
+**Never `git push` code while any .md file is out of sync with it.** Before every push
+that contains code changes, sweep ALL of: `README.md`, `DESIGN.md` (incl. §2 diagram,
+§8 UI, §12 milestones, header banner), `USER.md` (must describe the app exactly as the
+pushed code behaves — it is the field manual), `CLAUDE.md` (architecture map, phase
+note), `analysis/schema.md`, `docs/ui-mockup.md` (status header), and `docs/adr/`.
+Behavior changes land in the SAME commit or an earlier one than the code — never a
+later one. If a push is urgent, the docs are part of the urgency.
+
+**Project phase (since 2026-07-12):** MVP done (M1–M4), offline fusion validated (M5),
+and **M6 — the ride-display version — is implemented and released as v0.3.0**
+(ADR 0004/0005; UI spec `docs/ui-mockup.md`, followed exactly — any UI change goes
+through the mockup first). Calibration is automatic (`analysis/calibrate.py` is the
+reference; `AutoCalibrator.kt` mirrors its thresholds — keep them in sync). The on-device
+estimator is a port of `analysis/fusion/compare_ride.py` (fused_causal); the port is
+guarded by `LeanEstimatorPortTest` against a committed real-ride fixture — any estimator
+change must keep that test green and re-derive the fixture when the reference changes.
+Outstanding: field verification of 0.3.0 on the phone (§9), pitch validation (needs
+supermoto wheelie data; iOS logger for it is parked).
 
 ## Non-negotiable data-integrity rules
 
@@ -75,11 +85,18 @@ releases debug-signed from the same machine so upgrades keep installing over eac
 
 ```
 app/src/main/kotlin/dev/cdr74/ridelogger/
-  MainActivity.kt          # Compose UI: start/stop, status, marker, calib card + full-screen calib color overlay
+  MainActivity.kt          # Compose UI: startup states, slot/screen pickers, ride list, navigation
+  Preflight.kt             # pre-ride readiness checks (Initializing… / START / error screen)
+  LiveDisplay.kt           # live bar screen: unified bars + watermarks + STOP (ui-mockup S2)
+  PostRideScreen.kt        # post-ride summary + zoomable per-dimension traces (ui-mockup S3)
+  Dimensions.kt            # the four ride dimensions + live values/watermarks model
   RideLoggerService.kt     # foreground service; owns session lifecycle
-  SensorPipeline.kt        # SensorManager registration, HandlerThread → ring buffer
+  SensorPipeline.kt        # SensorManager registration, HandlerThread → ring buffer (+ estimator tap)
   GpsPipeline.kt           # fused location + GNSS status logging
-  CalibrationGuide.kt      # hands-free calib state machine on GPS speed (ADR 0003)
+  LeanEstimator.kt         # causal lean/accel/pitch estimator (port of the Python reference)
+  AutoCalibrator.kt        # streaming automatic calibration solver (ADR 0004)
+  CalibrationStore.kt      # persists the last solved R_phone→bike across rides
+  RideAnalyzer.kt          # post-ride replay → traces + stats, cached as .analysis.json sidecar
   RingBuffer.kt            # lock-free SPSC buffer between sensor thread and writer
   RideStore.kt             # SQLite writer: schema, batched transactions, meta table
   RideExporter.kt          # copy closed ride files to Downloads / share sheet
@@ -87,7 +104,9 @@ app/src/main/kotlin/dev/cdr74/ridelogger/
 ```
 
 Data flow: sensor callbacks → lock-free ring buffer → single writer coroutine → SQLite (WAL).
-UI observes a `StateFlow<SessionStatus>` from the service. No other coupling.
+A non-blocking tap on the sensor thread additionally feeds LeanEstimator/AutoCalibrator for
+the live display — it never touches the logging path. UI observes `StateFlow<SessionStatus>`
+and `StateFlow<LiveMetrics>` from the service. No other coupling.
 
 ## Testing policy
 

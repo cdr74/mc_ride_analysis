@@ -14,11 +14,14 @@ the working rules, `docs/adr/` records every decision.
 
 ## Phases (ADR 0005)
 
-1. **✅ Raw logger** (Android app 0.2.x, released) — never drops or alters a sample.
-2. **▶ Offline fusion** (`analysis/`) — calibration + lean estimation, validated on real
+1. **✅ Raw logger** (Android app, released) — never drops or alters a sample.
+2. **✅ Offline fusion** (`analysis/`) — calibration + lean estimation, validated on real
    rides; the causal live variant costs 0.35° RMS / 40 ms vs the offline reference.
-3. **▶ Ride display** (next app version, spec in `docs/ui-mockup.md`) — live bars with
-   session high-watermarks, post-ride analysis in-app, zero interaction while moving.
+   Pitch/wheelie validation still awaits real wheelie data.
+3. **✅ Ride display** (v0.3.0, spec in `docs/ui-mockup.md`) — live bars with session
+   high-watermarks, post-ride analysis in-app, zero interaction while moving. The
+   on-device estimator is a verified port of the offline reference (RMS 0.19° on a
+   real-ride fixture). Field verification on the road still pending.
 4. *Parked:* a minimal iOS logger writing the same ride-file format (wheelie data from a
    second bike).
 
