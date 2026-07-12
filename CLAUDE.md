@@ -16,6 +16,14 @@ The authoritative technical specification is **`DESIGN.md`** in the repo root. R
 implementing anything. If code and `DESIGN.md` diverge, `DESIGN.md` wins; update it via a short
 ADR note in `docs/adr/` when a decision changes.
 
+**Project phase (since 2026-07-12):** the MVP definition of done is met (2 validated rides
+in local `data/`, gitignored). Current phase is **offline fusion development** in
+`analysis/fusion/` (DESIGN.md §12 M5). The next app version is a "ride display"
+(ADR 0005, UI spec `docs/ui-mockup.md` — mockup is iterated and approved *before* UI code);
+it drops guided calibration and markers entirely (ADR 0004 — calibration is automatic
+from ride phases, solved by `analysis/calibrate.py`). The "no on-device fusion" rule below
+holds until M5 is validated; the M6 app then ports the validated offline filter.
+
 ## Non-negotiable data-integrity rules
 
 These are the reasons this app exists. Violating any of them makes collected rides worthless.

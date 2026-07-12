@@ -39,7 +39,14 @@ CREATE TABLE marker (
 );
 ```
 
-### Calibration marker semantics (guided hands-free flow, app ≥ 0.2.0)
+### Calibration marker semantics (guided hands-free flow, app 0.2.x only)
+
+> **ADR 0004 (2026-07-12):** calibration is now solved automatically from ride phases —
+> straight steady-cruise windows give bike z, straight-line acceleration events give
+> bike x; never solve gravity from stops (bars turn at standstill). Rides from newer app
+> versions contain **no markers at all** (the marker concept is retired, ADR 0005); the
+> `marker` table stays in schema v1 for compatibility. Everything below applies to
+> tagged legacy files only.
 
 - Calib segments carry `note` = `static_level` | `accel` | `brake`.
 - `calib_start` timestamps may be **backdated up to 2 s** relative to insertion order, to

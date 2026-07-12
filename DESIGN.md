@@ -1,6 +1,12 @@
 # DESIGN.md — RideLogger: Android Motorcycle Telemetry Logger (MVP)
 
-Status: Draft 1.0 · Owner: Chris · Last updated: 2026-07-11
+Status: Draft 1.1 · Owner: Chris · Last updated: 2026-07-12
+
+> **Direction update (2026-07-12):** the MVP data-collection goal is met. The next app
+> version becomes a **ride display** (ADR 0005, UI spec in `docs/ui-mockup.md`) and
+> calibration becomes fully automatic from ride phases (ADR 0004 — guided flow and the
+> marker concept are retired). Sections below describe the shipped MVP (app 0.2.x);
+> forward-looking changes are marked inline.
 
 ---
 
@@ -26,8 +32,11 @@ device-agnostic, but the §9 checklist is validated against this device.
 ### 1.2 Non-goals (MVP)
 
 - No on-device fusion, lean-angle display, or live telemetry.
+  *(Both arrive in the next version — but only after the offline filter is validated;
+  phasing in ADR 0005.)*
 - No iOS version, no cloud sync, no accounts.
-- No map rendering; GPS is logged, not visualized.
+- No map rendering; GPS is logged, not visualized. *(Permanent decision as of ADR 0005:
+  a ride is a data series over time, no geo display in any version.)*
 - No battery optimization beyond "don't be stupid" (accepted cost: ~15–25 %/h).
 
 ### 1.3 Why raw logging first
@@ -187,6 +196,7 @@ the first sensor row.
    registration keeps delivery alive through Doze; verify on the target device (§9).
 3. **Marker:** UI button and notification action insert a `marker(kind='user')` row —
    pressed at ride events worth finding later (wheelie attempt, specific corner).
+   *(Retired in the next version — the marker concept is removed altogether, ADR 0005.)*
 4. **Stop:** unregister sensors → drain ring buffer → final drop counts + second clock anchor +
    `clean_close=true` → checkpoint WAL → close DB → stop foreground.
 5. **Crash/kill:** WAL guarantees the file is readable minus the last uncommitted batch;
@@ -195,48 +205,49 @@ the first sensor row.
 
 ---
 
-## 7. Calibration procedure (data protocol, solved offline)
+## 7. Calibration (solved offline — automatic from ride phases)
 
-The phone-to-bike rotation matrix is solved in Python from tagged segments. The app only
-provides guided tagging that inserts `calib_start`/`calib_end` markers — **hands-free**
-(ADR 0003): the rider presses one button while stationary; every later phase transition
-(still → hard accel → hard brake) is detected from GPS speed with simple thresholds
-(constants in `Config.kt`) and announced with a beep **and a full-screen color cue**
-(blue = hold still, green = accelerate, orange = brake, red flash = retry, dark green =
-done; the screen is forced on at full brightness for the duration of the run, since
-engine/wind noise often masks the speaker). The rider never touches the phone while the
-bike is moving and only needs a peripheral glance at the screen color, never a read.
-`calib_start` markers are backdated 2 s to cover the
-1 Hz detection latency; markers only need to *bracket* the maneuvers — the offline solver
-extracts exact segments. This is UI guidance logic only, not on-device fusion.
+**Decision 2026-07-12 (ADR 0004): calibration is fully automatic.** The phone-to-bike
+rotation R_phone→bike is solved in Python from phases the solver detects in any normal
+ride — no rider action, no calibration UI, no markers. Field-validated: reproduces to
+~1.25° across rides and phone remounts, vs ~7° azimuth uncertainty for the old guided
+single-maneuver flow.
 
-**Mount is a handlebar mount (damped).** The phone frame therefore moves with the steering
-assembly, not the chassis. All calibration steps MUST be performed with the bars dead
-straight (front wheel aligned with the frame); the calibration UI text states this explicitly.
-The solved R_phone→bike is valid for δ ≈ 0 (steering angle zero); steering-angle coupling is
-handled offline (§11), not in the app.
+**Mount is a handlebar mount (damped).** The phone frame moves with the steering
+assembly, not the chassis. The solver therefore only uses phases where the bars are
+straight by construction:
 
-1. **Static level:** bike upright on level ground (center stand / held), bars straight, 10 s
-   stationary → gravity vector in phone frame → bike z-axis.
-2. **Straight-line accel:** brisk acceleration in a straight line, ~5 s
-   → horizontal specific-force direction → bike x-axis (y = z × x).
-   Moderate is enough — the detector triggers at 2 m/s²; steady and straight beats strong.
-3. **Straight-line brake:** confirms x-axis sign and quality. Released while still
-   rolling, **not** braked to a standstill — at a full stop the bars typically get
-   turned (foot down), and the phone sits on the steering assembly. The solver
-   additionally trims the sub-walking-speed tail of brake segments (see
-   `analysis/schema.md`).
+1. **Bike z (up):** duration-weighted mean specific force over **straight steady-cruise
+   windows** (GPS speed > 8 m/s, |dv/dt| < 0.3 m/s², heading rate < 1°/s, ≥ 5 s).
+   Never from stops — bars are typically turned at a standstill (foot down); a
+   stop-based estimate was 16° off in field data.
+2. **Bike x (forward):** magnitude-weighted mean horizontal specific-force direction over
+   **straight-line acceleration events** (GPS dv/dt > 1.2 m/s² for ≥ 2 s, bearing change
+   < 10°, mean yaw rate < 0.05 rad/s), re-orthogonalized against z. y = z × x.
+3. Fork dive/squat does not rotate the solved axes (the pitch-induced gravity leak is
+   collinear with x after the horizontal projection); it only biases maneuver magnitudes,
+   which the solver does not use.
 
-Recommended at the start of every ride, **mandatory after remounting the phone** (mount
-position varies slightly between remounts). Calibration is never enforced by the app: a
-ride without calibration segments is still valid — the offline solver
-(`analysis/calibrate.py`) computes R_phone→bike per ride where segments exist and falls
-back to the most recent solved calibration for rides without them, at reduced confidence.
-The solver discards segments that are too short (aborted holds, false starts).
+The solved R is valid for δ ≈ 0 (steering angle zero); steering-angle coupling is handled
+offline (§11), not in the app.
+
+**Fallback chain:** solve from this ride's phases → too few usable phases (short or
+slow ride) → reuse the most recent solved calibration for the same mount, at reduced
+confidence. A ride with no usable phases is still valid raw data.
+
+**Legacy (app ≤ 0.2.x):** rides tagged by the guided hands-free flow (ADR 0003 —
+`calib_start`/`calib_end` markers with `static_level`/`accel`/`brake` notes) remain
+supported; `analysis/calibrate.py` solves from tagged segments and the tagged result
+serves as seed/cross-check for the automatic solve. Segment semantics for those files
+are in `analysis/schema.md`.
 
 ---
 
 ## 8. UI (deliberately minimal)
+
+> Next version: the UI is redesigned as a ride display — live bars, post-ride views,
+> three-state startup. Spec: **`docs/ui-mockup.md`** (ADR 0005). Below is the shipped
+> MVP UI (app 0.2.x).
 
 Single screen, Compose:
 
@@ -273,7 +284,8 @@ No settings screen in MVP. Constants live in one `Config.kt`.
 - `schema.md` — mirror of §5.2; the cross-repo contract. Any schema change bumps
   `schema_version` and updates this file.
 - `validate_ride.py` — gap analysis, monotonic timestamps, meta completeness, drop stats.
-- `calibrate.py` — solves R_phone→bike from calibration segments.
+- `calibrate.py` — solves R_phone→bike: automatically from ride phases (ADR 0004),
+  and from tagged calibration segments in legacy (≤ 0.2.x) files.
 - `fusion/` — Madgwick/Mahony ports, GPS-aided roll estimator (φ ≈ atan(v·ψ̇/g) correction),
   comparison against logged rotvec baseline.
 - `report.py` — per-ride HTML: accel/brake histogram, lean-angle trace, candidate wheelie events.
@@ -293,6 +305,7 @@ No settings screen in MVP. Constants live in one `Config.kt`.
 | Thermal throttling on hot days reduces rate | rate re-measured continuously; gap analysis flags it |
 | Phone OIS damage from vibration | use damped mount (documented Apple warning; applies to Android OIS too) |
 | GPS speed lag corrupts roll correction | log speed_acc + gnss_raw; handle latency in filter, not in app |
+| Accelerometer scale error (Pixel 8 reads gravity −0.6 %; confirmed engine-off 2026-07-12) | normalize by per-ride measured |g| from quiet windows; direction-based math unaffected |
 
 Open: whether to add Bluetooth intake for an external reference unit (RaceBox Mini) into the
 same ride file — deferred; would validate but not block the MVP.
@@ -303,7 +316,9 @@ same ride file — deferred; would validate but not block the MVP.
 
 | # | Deliverable | Exit criterion |
 |---|---|---|
-| M1 | Logging core (service, pipelines, store) + unit tests | 10-min desk log passes validate_ride.py |
-| M2 | UI, markers, guided hands-free calibration, export | full workflow on device, gloves on |
-| M3 | Field hardening | §9 checklist green on target phone |
-| M4 | First instrumented rides + analysis kickoff | 3 rides with calibration segments archived |
+| M1 | Logging core (service, pipelines, store) + unit tests | 10-min desk log passes validate_ride.py ✔ |
+| M2 | UI, markers, guided hands-free calibration, export | full workflow on device, gloves on ✔ |
+| M3 | Field hardening | §9 checklist green on target phone ✔ (2026-07-12) |
+| M4 | First instrumented rides + analysis kickoff | rides archived, validated, calibration solved ✔ (2026-07-12, 2 rides / 54.6 km) |
+| M5 | Offline fusion validated (`analysis/fusion/`) | roll estimator agrees with rotvec baseline on real rides (speed > 5 m/s mask); wheelie/pitch plausible |
+| M6 | Ride-display app version (`docs/ui-mockup.md`, ADR 0004/0005) | post-ride view + live bars on device; guided calib & markers removed |

@@ -20,6 +20,7 @@ __pycache__/
 .venv/
 
 # Exported ride files — archive outside git
+data/
 *.db
 *.db-wal
 *.db-shm

@@ -95,6 +95,11 @@ The calibration and all offline analysis assume the mount from `DESIGN.md` §7:
 
 ### 3.2 Calibrate — hands-free
 
+> **Heads-up:** in the next app version this whole section disappears — calibration
+> becomes fully automatic from normal riding (no button, no colors, nothing to do;
+> `docs/adr/0004-automatic-calibration.md`). The instructions below apply to the
+> currently released app (0.2.x).
+
 The phone→bike orientation is re-solved offline from tagged ride segments. The app tags
 them for you: **you press one button while stopped, then never touch the phone again** —
 each phase is detected automatically from GPS speed. The app signals every transition
@@ -152,7 +157,7 @@ it costs one traffic-light stop.
 - The screen can be **off**; logging continues (foreground service + wakelock).
 - Press **MARKER** — in the app or on the notification — at any moment worth finding
   later: a wheelie attempt, a specific corner, something odd. Markers are timestamped
-  rows in the ride file.
+  rows in the ride file. *(Removed in the next app version.)*
 - Glance at the notification occasionally: it shows elapsed time and the drop count.
   Drops should stay at 0.
 

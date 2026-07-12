@@ -10,7 +10,10 @@ sensor-fusion development in Python. See `DESIGN.md` for the authoritative spec 
 - `app/` — Android app (Kotlin, Compose, min SDK 29)
 - `analysis/schema.md` — ride-file schema, the app↔Python contract
 - `analysis/validate_ride.py` — ride-file validation (gaps, monotonicity, meta, drops)
+- `analysis/calibrate.py` — solves the phone→bike rotation (automatic from ride phases; tagged segments in legacy files)
 - `docs/adr/` — decision notes when code diverges from the spec
+- `docs/ui-mockup.md` — approved UI spec for the next app version (ride display)
+- `data/` — local ride files + solved calibrations (gitignored, ~100 MB+ per ride)
 
 ## Get the app
 
