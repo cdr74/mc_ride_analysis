@@ -12,8 +12,8 @@ android {
         applicationId = "dev.cdr74.ridelogger"
         minSdk = 29
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.2.2"
+        versionCode = 6
+        versionName = "0.3.0"
     }
 
     buildFeatures {

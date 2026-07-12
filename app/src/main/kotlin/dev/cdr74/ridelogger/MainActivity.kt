@@ -1,24 +1,14 @@
 package dev.cdr74.ridelogger
 
-import android.Manifest
-import android.app.Activity
-import android.content.pm.PackageManager
-import android.os.Build
+import android.content.Intent
 import android.os.Bundle
-import android.view.WindowManager
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,13 +22,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -49,17 +39,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
-import kotlinx.coroutines.delay
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import java.io.File
 
 /**
- * Single-screen Compose UI (DESIGN.md §8): big start/stop, status block, marker,
- * calibration card + full-screen guidance overlay, ride list. Deliberately no theming work.
+ * Ride-display version UI (docs/ui-mockup.md, ADR 0005). This is step 1 of M6:
+ * three-state startup (Initializing… → START / error screen) and the ride list.
+ * The live bar display (S2) and post-ride views (S3) land in later steps; while
+ * recording, the screen currently shows the status block + STOP.
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,79 +63,40 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private fun requiredPermissions(): Array<String> =
-    if (Build.VERSION.SDK_INT >= 33) {
-        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.POST_NOTIFICATIONS)
-    } else {
-        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
-    }
-
 @Composable
 private fun MainScreen() {
     val context = LocalContext.current
     val status by RideLoggerService.status.collectAsState()
 
-    var locationGranted by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED,
-        )
-    }
+    val preflight = remember { Preflight(context) }
+    val preflightState by preflight.state.collectAsState()
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { grants ->
-        locationGranted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true
+    ) { preflight.start() }
+
+    // Preflight runs only while the app is idle in the foreground: paused on
+    // ON_PAUSE and while a ride is recording (the ride owns GPS + sensors then).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, status.running) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> if (!status.running) preflight.start()
+                Lifecycle.Event.ON_PAUSE -> preflight.stop()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (status.running) preflight.stop()
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            preflight.stop()
+        }
     }
 
     var rideListVersion by remember { mutableIntStateOf(0) }
     val rides = remember(status.running, rideListVersion) {
         RideExporter.closedRides(context, status.rideFileName)
-    }
-
-    // Full-screen color cues while calibration runs (ADR 0003): beeps are often
-    // inaudible over engine/wind noise, so the phase must be readable at a glance.
-    val phase = status.calib
-    val calibRunning = status.running &&
-        phase != CalibrationGuide.Phase.IDLE && phase != CalibrationGuide.Phase.DONE
-    var showDoneScreen by remember { mutableStateOf(false) }
-    LaunchedEffect(phase, status.running) {
-        when {
-            calibRunning -> showDoneScreen = true // arm: DONE screen only right after a run
-            phase == CalibrationGuide.Phase.DONE && showDoneScreen -> {
-                delay(4000)
-                showDoneScreen = false
-            }
-            else -> showDoneScreen = false
-        }
-    }
-    val overlayVisible = calibRunning ||
-        (status.running && phase == CalibrationGuide.Phase.DONE && showDoneScreen)
-
-    // The cue is useless on a dark screen: force the screen on at full brightness for
-    // the duration of the calibration run only (normal rides keep the screen off).
-    DisposableEffect(overlayVisible) {
-        val window = (context as? Activity)?.window
-        if (overlayVisible && window != null) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            window.attributes = window.attributes.also { it.screenBrightness = 1f }
-        }
-        onDispose {
-            if (overlayVisible && window != null) {
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                window.attributes = window.attributes.also {
-                    it.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-                }
-            }
-        }
-    }
-
-    if (overlayVisible) {
-        CalibrationOverlay(phase = phase, onCancel = {
-            context.startService(
-                RideLoggerService.intent(context, RideLoggerService.ACTION_CALIB_CANCEL),
-            )
-        })
-        return
     }
 
     Column(
@@ -156,49 +108,40 @@ private fun MainScreen() {
     ) {
         Spacer(Modifier.height(16.dp))
 
-        // Big glove-friendly start/stop.
-        Button(
-            onClick = {
-                if (status.running) {
+        if (status.running) {
+            Button(
+                onClick = {
                     context.startService(RideLoggerService.intent(context, RideLoggerService.ACTION_STOP))
-                } else if (locationGranted) {
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(96.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E)),
+            ) {
+                Text("STOP", fontSize = 28.sp)
+            }
+            StatusBlock(status)
+        } else {
+            StartCard(
+                state = preflightState,
+                onStart = {
                     context.startForegroundService(
                         RideLoggerService.intent(context, RideLoggerService.ACTION_START),
                     )
-                } else {
-                    permissionLauncher.launch(requiredPermissions())
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(96.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (status.running) Color(0xFFB3261E) else Color(0xFF2E7D32),
-            ),
-        ) {
-            Text(
-                text = when {
-                    status.running -> "STOP"
-                    locationGranted -> "START RIDE"
-                    else -> "GRANT PERMISSIONS"
                 },
-                fontSize = 28.sp,
+                onIssueAction = { action ->
+                    when (action) {
+                        Preflight.Action.REQUEST_PERMISSIONS ->
+                            permissionLauncher.launch(Preflight.requiredPermissions())
+                        Preflight.Action.OPEN_LOCATION_SETTINGS ->
+                            context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                        Preflight.Action.OPEN_PRIVACY_SETTINGS ->
+                            context.startActivity(Intent(Settings.ACTION_PRIVACY_SETTINGS))
+                        Preflight.Action.NONE -> Unit
+                    }
+                },
             )
         }
-
-        StatusBlock(status)
-
-        Button(
-            onClick = { context.startService(RideLoggerService.intent(context, RideLoggerService.ACTION_MARKER)) },
-            enabled = status.running,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(72.dp),
-        ) {
-            Text("MARKER (${status.markerCount})", fontSize = 22.sp)
-        }
-
-        CalibrationCard(status)
 
         HorizontalDivider()
         Text("Rides", style = MaterialTheme.typography.titleMedium)
@@ -212,14 +155,79 @@ private fun MainScreen() {
     }
 }
 
+/**
+ * Three-state startup (ui-mockup S1, Q8): "Initializing…" while sensors and GPS warm
+ * up, the START button appears only when everything is ready, and a comprehensive
+ * error card explains anything the app cannot access — with a button to fix it.
+ */
+@Composable
+private fun StartCard(
+    state: Preflight.State,
+    onStart: () -> Unit,
+    onIssueAction: (Preflight.Action) -> Unit,
+) {
+    when (state) {
+        is Preflight.State.Ready -> Button(
+            onClick = onStart,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(96.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+        ) {
+            Text("START", fontSize = 28.sp)
+        }
+
+        is Preflight.State.Initializing -> Card(Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.padding(20.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircularProgressIndicator(Modifier.height(28.dp))
+                Column {
+                    Text("Initializing …", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "waiting for ${state.waitingFor.joinToString(" · ")}",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        }
+
+        is Preflight.State.Blocked -> Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Can't record yet",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                state.issues.forEach { issue ->
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(issue.title, style = MaterialTheme.typography.titleMedium)
+                        Text(issue.detail, style = MaterialTheme.typography.bodyMedium)
+                        if (issue.action != Preflight.Action.NONE) {
+                            Button(onClick = { onIssueAction(issue.action) }) {
+                                Text(
+                                    when (issue.action) {
+                                        Preflight.Action.REQUEST_PERMISSIONS -> "Grant permissions"
+                                        Preflight.Action.OPEN_LOCATION_SETTINGS -> "Open location settings"
+                                        Preflight.Action.OPEN_PRIVACY_SETTINGS -> "Open privacy settings"
+                                        Preflight.Action.NONE -> ""
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun StatusBlock(status: SessionStatus) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (!status.running) {
-                Text("Idle", style = MaterialTheme.typography.titleMedium)
-                return@Column
-            }
             val el = status.elapsedMs / 1000
             Text(
                 "%d:%02d:%02d · %s · %.1f MB".format(
@@ -254,165 +262,6 @@ private fun StatusBlock(status: SessionStatus) {
                     color = MaterialTheme.colorScheme.error,
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun CalibrationCard(status: SessionStatus) {
-    val context = LocalContext.current
-    val phase = status.calib
-    val active = phase != CalibrationGuide.Phase.IDLE && phase != CalibrationGuide.Phase.DONE
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Calibration", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Hands-free: start it once while stopped, then just ride — the app detects " +
-                    "each phase (hold still 10 s → brisk accel → firm brake, released while " +
-                    "still rolling). The screen stays on and shows one color per phase: BLUE " +
-                    "hold still, GREEN accelerate, ORANGE brake, red flash = retry. Beeps too, " +
-                    "if you can hear them. Bars DEAD STRAIGHT throughout. No buttons while moving.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            if (phase != CalibrationGuide.Phase.IDLE) {
-                Text(
-                    phase.instruction,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = if (phase == CalibrationGuide.Phase.DONE) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.tertiary
-                    },
-                )
-            }
-            Button(
-                onClick = {
-                    val action = if (active) {
-                        RideLoggerService.ACTION_CALIB_CANCEL
-                    } else {
-                        RideLoggerService.ACTION_CALIB_START
-                    }
-                    context.startService(RideLoggerService.intent(context, action))
-                },
-                enabled = status.running,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp),
-            ) {
-                Text(
-                    when {
-                        active -> "CANCEL CALIBRATION"
-                        phase == CalibrationGuide.Phase.DONE -> "RECALIBRATE"
-                        else -> "START CALIBRATION"
-                    },
-                    fontSize = 18.sp,
-                )
-            }
-        }
-    }
-}
-
-/** What the full-screen overlay shows for one calibration phase. */
-private data class CalibCue(val bg: Color, val word: String, val sub: String, val capturing: Boolean)
-
-private fun calibCue(phase: CalibrationGuide.Phase): CalibCue = when (phase) {
-    CalibrationGuide.Phase.WAIT_STATIC ->
-        CalibCue(Color(0xFF1565C0), "HOLD STILL", "Bars dead straight · waiting for GPS to confirm", false)
-    CalibrationGuide.Phase.STATIC ->
-        CalibCue(Color(0xFF1565C0), "HOLD STILL", "Measuring — about 10 s", true)
-    CalibrationGuide.Phase.WAIT_ACCEL ->
-        CalibCue(Color(0xFF2E7D32), "ACCELERATE", "Brisk, not full throttle · dead straight · when safe — no rush", false)
-    CalibrationGuide.Phase.ACCEL ->
-        CalibCue(Color(0xFF2E7D32), "KEEP GOING", "Dead straight", true)
-    CalibrationGuide.Phase.WAIT_BRAKE ->
-        CalibCue(Color(0xFFE65100), "BRAKE", "Firmly · dead straight · when safe · release while still rolling", false)
-    CalibrationGuide.Phase.BRAKE ->
-        CalibCue(Color(0xFFE65100), "KEEP BRAKING", "Dead straight · don't brake to a standstill", true)
-    CalibrationGuide.Phase.DONE ->
-        CalibCue(Color(0xFF1B5E20), "DONE ✓", "Calibration complete", false)
-    CalibrationGuide.Phase.IDLE -> CalibCue(Color.Black, "", "", false)
-}
-
-private val RETRY_CUE =
-    CalibCue(Color(0xFFB3261E), "AGAIN", "That didn't count — it restarts by itself", false)
-
-/**
- * Full-screen calibration guidance, readable from peripheral vision: the whole screen
- * is one solid color per phase (blue = hold still, green = accelerate, orange = brake,
- * red flash = retry, dark green = done) plus one huge word. Mirrors the beeps of
- * ADR 0003 for riders who cannot hear the phone over engine/wind noise.
- */
-@Composable
-private fun CalibrationOverlay(phase: CalibrationGuide.Phase, onCancel: () -> Unit) {
-    // A retry is a phase going *backwards* (guide retries silently); flash red so the
-    // rider knows the attempt didn't count.
-    var prev by remember { mutableStateOf(phase) }
-    var retryFlash by remember { mutableStateOf(false) }
-    LaunchedEffect(phase) {
-        val retry = (prev == CalibrationGuide.Phase.STATIC && phase == CalibrationGuide.Phase.WAIT_STATIC) ||
-            (prev == CalibrationGuide.Phase.ACCEL && phase == CalibrationGuide.Phase.WAIT_ACCEL)
-        prev = phase
-        retryFlash = retry
-        if (retry) {
-            delay(1500)
-            retryFlash = false
-        }
-    }
-    val cue = if (retryFlash) RETRY_CUE else calibCue(phase)
-
-    val pulse by rememberInfiniteTransition(label = "calibPulse").animateFloat(
-        initialValue = 1f,
-        targetValue = 0.25f,
-        animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse),
-        label = "calibPulseAlpha",
-    )
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(cue.bg)
-            .padding(24.dp),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text("CALIBRATION", color = Color.White.copy(alpha = 0.7f), fontSize = 18.sp)
-            Spacer(Modifier.height(16.dp))
-            Text(
-                cue.word,
-                color = Color.White,
-                fontSize = 64.sp,
-                fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center,
-                lineHeight = 68.sp,
-            )
-            Spacer(Modifier.height(16.dp))
-            Text(cue.sub, color = Color.White, fontSize = 20.sp, textAlign = TextAlign.Center)
-            if (cue.capturing) {
-                Spacer(Modifier.height(24.dp))
-                Text(
-                    "● RECORDING",
-                    color = Color.White.copy(alpha = pulse),
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-        }
-        if (phase != CalibrationGuide.Phase.DONE) {
-            Button(
-                onClick = onCancel,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(64.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.White.copy(alpha = 0.2f),
-                    contentColor = Color.White,
-                ),
-            ) { Text("CANCEL CALIBRATION", fontSize = 18.sp) }
         }
     }
 }
