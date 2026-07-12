@@ -22,9 +22,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,8 +61,9 @@ fun PostRideScreen(file: File, onClose: () -> Unit) {
     BackHandler { if (detailDim != null) detailDim = null else onClose() }
 
     val context = androidx.compose.ui.platform.LocalContext.current
-    val analysis by produceState<RideAnalyzer.Analysis?>(null, file) {
-        value = withContext(Dispatchers.IO) { RideAnalyzer.get(context, file) }
+    var analysis by remember(file) { mutableStateOf<RideAnalyzer.Analysis?>(null) }
+    LaunchedEffect(file) {
+        analysis = withContext(Dispatchers.IO) { RideAnalyzer.get(context, file) }
     }
 
     val a = analysis

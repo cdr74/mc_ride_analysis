@@ -1,6 +1,7 @@
 # RideLogger — field manual
 
-How to install the MVP app, calibrate it, record a ride, and get the data onto your PC.
+How to install the app, record a ride with the live display, review it, and get the
+data onto your PC. Calibration is automatic — there is nothing to calibrate by hand.
 Target device: Google Pixel 8 (works on any Android 10+ phone, but the field checklist in
 `DESIGN.md` §9 is only validated against the Pixel 8).
 
@@ -46,14 +47,14 @@ options, then `adb pair` + `adb connect`) or run adb from Windows.
 
 ### 1.4 First launch — permissions and settings
 
-1. Open **RideLogger**. The big button reads **GRANT PERMISSIONS** — tap it and grant:
+1. Open **RideLogger**. On first launch the app shows a **"Can't record yet"** card
+   listing everything it needs, each with a fix button — grant:
    - **Location → While using the app**, and make sure **Precise** is selected.
-   - **Notifications** (Android 13+) — needed for the recording notification and its
-     Marker button.
+   - **Notifications** (Android 13+) — needed for the recording notification.
 2. **Critical — microphone privacy toggle:** on Android 12+ the system-wide mic toggle
    being OFF silently caps *all* sensors at 200 Hz, killing the high-rate IMU logging.
-   Check Settings → Security & privacy → Privacy controls → **Microphone access = ON**.
-   The app warns during recording if the measured accel rate looks capped (< 210 Hz).
+   The startup check detects this and shows it as a blocking issue with a settings
+   shortcut (Settings → Security & privacy → Privacy controls → **Microphone access = ON**).
 3. Battery: nothing to configure. The app runs a foreground service with a wakelock;
    expect roughly 15–25 %/h drain while recording. Do not enable any battery saver that
    restricts background sensors during a ride.
@@ -85,86 +86,50 @@ The calibration and all offline analysis assume the mount from `DESIGN.md` §7:
 ### 3.1 Start
 
 1. Mount the phone, start the bike, stand somewhere with open sky.
-2. Tap **START RIDE**. A persistent notification appears; the status card starts updating
-   once per second.
-3. Sanity-check the status card before riding off (give it ~15 s):
-   - accel/gyro around **400 Hz** (device-dependent, anything ≥ 100 Hz is usable;
-     if you see ~200 Hz, check the mic toggle — see §1.4),
-   - **GPS: ±N m** with a satellite count, not "no fix",
-   - **Dropped events: 0**.
+2. On the home screen, pick what you want while riding:
+   - **LIVE** — up to two dimensions shown as big bars during the ride: **LEAN**,
+     **ACCEL/BRAKE**, **PITCH**, **SPEED** (tap a chip to cycle, or set it to OFF).
+   - **SCREEN** — *live display* (screen stays on, showing the bars) or
+     *off (background)* (screen off, app minimizes; review everything after the ride).
+3. The app shows **"Initializing …"** while sensors spin up and GPS acquires — the
+   green **START** button appearing *is* the ready signal. If something is wrong
+   (permission, location off, sensor rate capped) you get an error card with a fix
+   button instead. Tap **START** and ride.
 
-### 3.2 Calibrate — hands-free
+### 3.2 Calibration — automatic, nothing to do
 
-> **Heads-up:** in the next app version this whole section disappears — calibration
-> becomes fully automatic from normal riding (no button, no colors, nothing to do;
-> `docs/adr/0004-automatic-calibration.md`). The instructions below apply to the
-> currently released app (0.2.x).
+Since 0.3.0 there is **no calibration procedure**. The phone→bike orientation is solved
+automatically from normal riding (steady cruising gives "up", straight accelerations
+give "forward" — `docs/adr/0004-automatic-calibration.md`). What that means in practice:
 
-The phone→bike orientation is re-solved offline from tagged ride segments. The app tags
-them for you: **you press one button while stopped, then never touch the phone again** —
-each phase is detected automatically from GPS speed. The app signals every transition
-two ways:
-
-- **Screen color (primary):** during calibration the screen stays on at full brightness
-  and shows **one solid color per phase** — you read it from the corner of your eye,
-  never stare at it:
-
-  | Color | Meaning |
-  |---|---|
-  | 🟦 Blue — HOLD STILL | stay stopped, bars straight |
-  | 🟩 Green — ACCELERATE | when safe: brisk, straight-line acceleration (moderate is enough) |
-  | 🟧 Orange — BRAKE | when safe: firm, straight-line braking — release while still rolling |
-  | 🟥 Red flash — AGAIN | that attempt didn't count; it retries by itself |
-  | ✅ Dark green — DONE | calibration complete, screen returns to normal |
-
-- **Beeps (backup):** the same transitions also beep on the media stream — useful with
-  helmet speakers, usually inaudible from the phone itself over engine/wind noise.
-
-> **Bars DEAD STRAIGHT throughout.** The phone sits on the steering assembly: if the
-> bars are turned, the calibration is garbage. Front wheel aligned with the frame.
-
-1. Stopped, upright (held vertical or center stand — not the side stand), bars straight:
-   tap **START CALIBRATION**. The screen turns **blue**.
-2. **Hold still.** After a moment the app starts a 10 s measurement — screen turns
-   **green** when done. (If you move too early it flashes **red** and simply restarts —
-   just hold still until it goes green.)
-3. Ride off whenever it's safe and **accelerate briskly in a straight line** for ~5 s.
-   **Moderate acceleration is enough** (roughly 0→50 km/h in 5 s) — no full throttle
-   needed; steady and dead straight matters more than strong. The app detects the
-   launch by itself — screen turns **orange** when captured.
-4. When safe, **brake firmly in a straight line, then release the brakes while still
-   rolling** — do **not** brake all the way to a standstill: in the last moment of a
-   full stop the bars typically get turned to put a foot down, and turned bars corrupt
-   the measurement (the phone sits on the steering assembly). Releasing at rolling
-   speed ends the capture cleanly — **dark green ✓**: calibration complete, the normal
-   screen comes back by itself. (If you do end up stopping, don't worry — the analysis
-   trims the below-walking-speed tail.)
-
-There is no time pressure between phases: cruise as long as you like before the
-acceleration or the braking — the app waits. Detection only needs to roughly bracket the
-maneuvers; the offline solver finds the exact segments. **CANCEL CALIBRATION** aborts
-cleanly at any point, and you can redo the whole thing anytime (**RECALIBRATE**) — extra
-or aborted segments are harmless.
-
-**Do you have to calibrate every ride?** No — the app never forces it. Calibrate whenever
-the phone was taken off / remounted (the mount position shifts slightly each time); for
-back-to-back rides with the phone left on the bike, skipping is fine — the analysis falls
-back to the most recent calibration, at slightly reduced confidence. When in doubt, do it:
-it costs one traffic-light stop.
+- **Normally:** the app reuses the calibration from your previous rides from the first
+  second — remounting the phone shifts it by only ~1°, which is fine.
+- **Very first ride (or after reinstalling):** the lean / accel / pitch bars show
+  "calibrating…" for the first minutes of riding, then start working by themselves once
+  the app has seen enough steady cruising and a couple of straight accelerations.
+  Speed always works.
+- Riding normally is all it takes. No buttons, no colors, no maneuvers on command.
 
 ### 3.3 Ride
 
-- The screen can be **off**; logging continues (foreground service + wakelock).
-- Press **MARKER** — in the app or on the notification — at any moment worth finding
-  later: a wheelie attempt, a specific corner, something odd. Markers are timestamped
-  rows in the ride file. *(Removed in the next app version.)*
-- Glance at the notification occasionally: it shows elapsed time and the drop count.
-  Drops should stay at 0.
+- **Live display mode:** the screen stays on and shows your two chosen dimensions as
+  huge bars. The thin black ticks are your **session maxima** — they never move back
+  during the ride. The bar shifts amber/red as you approach your own max. **Lean shows
+  "—" below 18 km/h** — that's intentional (the bar-mounted phone turns with the bars
+  at low speed, the reading would be garbage).
+- **Background mode:** the screen is off, logging continues (foreground service +
+  wakelock). Opening the app during the ride shows the live display.
+- Touching the bars does nothing while moving; only STOP is active.
+- The notification shows elapsed time and the drop count. Drops should stay at 0.
 
-### 3.4 Stop
+### 3.4 Stop & review
 
-Tap **STOP**. The app drains its buffers, writes the closing metadata (clock anchor, drop
-counts, `clean_close`) and closes the file. The ride then appears in the **Rides** list.
+Tap **STOP** (bottom of the live display). The app closes the ride file and opens the
+**post-ride summary** automatically: distance, duration, and every dimension with its
+session extremes. Tap a dimension for the full trace over time — pinch to zoom, drag to
+pan, tap for the value at that moment; the EXTREMES list jumps straight to the deepest
+lean or hardest braking. The first open shows "computing…" for a few seconds (the
+analysis runs once and is cached). Rides remain in the **Rides** list.
 
 If the app or phone died mid-ride: the file is still readable up to the last committed
 batch (≤ 0.5 s of data lost). The validator flags such rides as crash-terminated —
@@ -212,11 +177,9 @@ next ride. The file format itself is documented in `analysis/schema.md`.
 
 | Symptom | Cause / fix |
 |---|---|
-| Accel/gyro stuck near 200 Hz, in-app warning shown | System mic privacy toggle is OFF — turn microphone access on (§1.4) and restart the ride |
-| "GPS: no fix" for minutes | Be outdoors with sky view; confirm Location permission is *Precise*; first fix after a long time can take a minute |
-| Calibration stuck on blue "HOLD STILL" | Phase detection runs on GPS speed — wait until the status card shows a GPS fix before starting calibration |
-| No beep at a calibration transition | Normal on the bike — follow the screen colors instead; beeps play on the media stream (helmet speakers / earbuds work) |
-| Screen dark during calibration | Should not happen — the app forces the screen on at full brightness while calibrating. If it does, tap the power button once and file an issue |
+| Startup error "Sensor rate capped at 200 Hz" | System mic privacy toggle is OFF — the error card's button takes you to the setting; turn microphone access on and return to the app |
+| Stuck on "Initializing … waiting for GPS fix" | Be outdoors with sky view; confirm Location permission is *Precise*; first fix after a long time can take a minute |
+| Lean bar shows "—" while riding | Below 18 km/h that's intentional (bar-turn coupling). Above 18 km/h with "calibrating…": first ride on this install — ride steadily for a few minutes, it resolves itself |
 | Rates drop during a long hot ride | Thermal throttling — expected on hot days; the gap analysis in the validator will show it. Shade the phone if possible |
 | Dropped events > 0 | Should not happen at MVP write rates — validate the ride; if it recurs, note phone temperature and file an issue |
 | Ride missing from the list after a crash | The service never resumes a file after a kill; the file is still in the list (or on disk under `Android/data` files/rides) and readable — validator will report it as crash-terminated |
