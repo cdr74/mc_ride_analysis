@@ -16,6 +16,23 @@ The authoritative technical specification is **`DESIGN.md`** in the repo root. R
 implementing anything. If code and `DESIGN.md` diverge, `DESIGN.md` wins; update it via a short
 ADR note in `docs/adr/` when a decision changes.
 
+## Decision protocol (non-negotiable, added 2026-07-12)
+
+**Design decisions are ALWAYS taken together with Chris — never unilaterally.
+Implementation of an agreed design can proceed without interaction.**
+
+Design decisions include (not exhaustive): architecture and component boundaries, data
+formats/granularity/retention (raw rates, cache resolution, file layout), algorithms and
+user-visible thresholds (filters, cutoffs, calibration strategy), anything UI/UX (which
+also goes through `docs/ui-mockup.md` first), schema, product scope, and release
+strategy. For these: present the options with a recommendation and wait for the call.
+
+Implementation includes: writing code to an already-agreed design, bug fixes that
+restore agreed behavior, refactors with no behavior change, tests, doc syncs. These
+proceed autonomously.
+
+When unsure which side of the line something falls on, it's a design decision — ask.
+
 ## Docs-in-sync rule (non-negotiable, added 2026-07-12 after a violation)
 
 **Never `git push` code while any .md file is out of sync with it.** Before every push
