@@ -99,7 +99,12 @@ class RideLoggerService : Service() {
         ).also { this.sensors = it }
         val streamInfo = sensors.start()
 
-        val gps = GpsPipeline(this, store).also { this.gps = it }
+        live.value = LiveMetrics()
+        val gps = GpsPipeline(this, store, onFix = { loc ->
+            if (loc.hasSpeed()) {
+                live.value = live.value.copy(speed = live.value.speed.update(loc.speed * 3.6f))
+            }
+        }).also { this.gps = it }
         val rawSupported = gps.start()
         store.putMeta("gnss_raw_supported", rawSupported.toString())
 
@@ -241,6 +246,9 @@ class RideLoggerService : Service() {
 
         /** UI observes this; static because the app is deliberately DI-free (CLAUDE.md). */
         val status: MutableStateFlow<SessionStatus> = MutableStateFlow(SessionStatus())
+
+        /** Live bar values + session watermarks for the ride display (ui-mockup S2). */
+        val live: MutableStateFlow<LiveMetrics> = MutableStateFlow(LiveMetrics())
 
         fun intent(context: Context, action: String): Intent =
             Intent(context, RideLoggerService::class.java).setAction(action)

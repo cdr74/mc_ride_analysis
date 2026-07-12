@@ -1,8 +1,11 @@
 package dev.cdr74.ridelogger
 
+import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -23,6 +27,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -47,10 +52,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import java.io.File
 
 /**
- * Ride-display version UI (docs/ui-mockup.md, ADR 0005). This is step 1 of M6:
- * three-state startup (Initializing… → START / error screen) and the ride list.
- * The live bar display (S2) and post-ride views (S3) land in later steps; while
- * recording, the screen currently shows the status block + STOP.
+ * Ride-display version UI (docs/ui-mockup.md, ADR 0005): three-state startup
+ * (Initializing… → START / error screen), live-dimension slot picker, screen-mode
+ * choice, the live bar display while recording, and the ride list.
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,10 +67,39 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private enum class ScreenMode { LIVE, BACKGROUND }
+
+/** Persisted UI choices (no settings screen — every choice lives where it's used). */
+private class UiPrefs(context: Context) {
+    private val prefs = context.getSharedPreferences("ridelogger_ui", Context.MODE_PRIVATE)
+
+    var slots: List<Dimension?>
+        get() = listOf(
+            Dimension.fromName(prefs.getString("slot0", Dimension.LEAN.name)),
+            Dimension.fromName(prefs.getString("slot1", Dimension.SPEED.name)),
+        )
+        set(v) = prefs.edit()
+            .putString("slot0", v.getOrNull(0)?.name)
+            .putString("slot1", v.getOrNull(1)?.name)
+            .apply()
+
+    var screenMode: ScreenMode
+        get() = if (prefs.getString("screen_mode", ScreenMode.LIVE.name) == ScreenMode.BACKGROUND.name) {
+            ScreenMode.BACKGROUND
+        } else {
+            ScreenMode.LIVE
+        }
+        set(v) = prefs.edit().putString("screen_mode", v.name).apply()
+}
+
 @Composable
 private fun MainScreen() {
     val context = LocalContext.current
     val status by RideLoggerService.status.collectAsState()
+
+    val uiPrefs = remember { UiPrefs(context) }
+    var slots by remember { mutableStateOf(uiPrefs.slots) }
+    var screenMode by remember { mutableStateOf(uiPrefs.screenMode) }
 
     val preflight = remember { Preflight(context) }
     val preflightState by preflight.state.collectAsState()
@@ -94,9 +127,19 @@ private fun MainScreen() {
         }
     }
 
-    var rideListVersion by remember { mutableIntStateOf(0) }
-    val rides = remember(status.running, rideListVersion) {
-        RideExporter.closedRides(context, status.rideFileName)
+    if (status.running) {
+        val live by RideLoggerService.live.collectAsState()
+        // Rider chose a screen-on live display: keep it on for the whole ride.
+        KeepScreenOn(enabled = screenMode == ScreenMode.LIVE)
+        LiveDisplayScreen(
+            slots = slots,
+            metrics = live,
+            diagLine = diagLine(status),
+            onStop = {
+                context.startService(RideLoggerService.intent(context, RideLoggerService.ACTION_STOP))
+            },
+        )
+        return
     }
 
     Column(
@@ -108,43 +151,38 @@ private fun MainScreen() {
     ) {
         Spacer(Modifier.height(16.dp))
 
-        if (status.running) {
-            Button(
-                onClick = {
-                    context.startService(RideLoggerService.intent(context, RideLoggerService.ACTION_STOP))
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(96.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB3261E)),
-            ) {
-                Text("STOP", fontSize = 28.sp)
-            }
-            StatusBlock(status)
-        } else {
-            StartCard(
-                state = preflightState,
-                onStart = {
-                    context.startForegroundService(
-                        RideLoggerService.intent(context, RideLoggerService.ACTION_START),
-                    )
-                },
-                onIssueAction = { action ->
-                    when (action) {
-                        Preflight.Action.REQUEST_PERMISSIONS ->
-                            permissionLauncher.launch(Preflight.requiredPermissions())
-                        Preflight.Action.OPEN_LOCATION_SETTINGS ->
-                            context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-                        Preflight.Action.OPEN_PRIVACY_SETTINGS ->
-                            context.startActivity(Intent(Settings.ACTION_PRIVACY_SETTINGS))
-                        Preflight.Action.NONE -> Unit
-                    }
-                },
-            )
-        }
+        StartCard(
+            state = preflightState,
+            onStart = {
+                context.startForegroundService(
+                    RideLoggerService.intent(context, RideLoggerService.ACTION_START),
+                )
+                if (screenMode == ScreenMode.BACKGROUND) {
+                    (context as? Activity)?.moveTaskToBack(true)
+                }
+            },
+            onIssueAction = { action ->
+                when (action) {
+                    Preflight.Action.REQUEST_PERMISSIONS ->
+                        permissionLauncher.launch(Preflight.requiredPermissions())
+                    Preflight.Action.OPEN_LOCATION_SETTINGS ->
+                        context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                    Preflight.Action.OPEN_PRIVACY_SETTINGS ->
+                        context.startActivity(Intent(Settings.ACTION_PRIVACY_SETTINGS))
+                    Preflight.Action.NONE -> Unit
+                }
+            },
+        )
+
+        SlotPicker(slots) { slots = it; uiPrefs.slots = it }
+        ScreenModeRow(screenMode) { screenMode = it; uiPrefs.screenMode = it }
 
         HorizontalDivider()
         Text("Rides", style = MaterialTheme.typography.titleMedium)
+        var rideListVersion by remember { mutableIntStateOf(0) }
+        val rides = remember(rideListVersion) {
+            RideExporter.closedRides(context, null)
+        }
         rides.forEach { file ->
             RideRow(file = file, onChanged = { rideListVersion++ })
         }
@@ -152,6 +190,80 @@ private fun MainScreen() {
             Text("No closed rides yet.", style = MaterialTheme.typography.bodyMedium)
         }
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+private fun diagLine(status: SessionStatus): String {
+    val el = status.elapsedMs / 1000
+    val warn = if (status.elapsedMs > 15_000 && status.ratesHz[0] > 0 &&
+        status.ratesHz[0] < Config.LOW_RATE_WARN_HZ
+    ) {
+        " · ⚠ rate capped — mic toggle"
+    } else {
+        ""
+    }
+    return "%d:%02d:%02d · %.0f Hz · drops %d · %s%s".format(
+        el / 3600, el / 60 % 60, el % 60,
+        status.ratesHz[0], status.drops,
+        if (status.gps?.hasFix == true) "GPS ✓" else "GPS …",
+        warn,
+    )
+}
+
+@Composable
+private fun KeepScreenOn(enabled: Boolean) {
+    val context = LocalContext.current
+    DisposableEffect(enabled) {
+        val window = (context as? Activity)?.window
+        if (enabled && window != null) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            if (enabled && window != null) {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
+    }
+}
+
+/** Two live-display slots; tapping a chip cycles lean → accel → pitch → speed → off. */
+@Composable
+private fun SlotPicker(slots: List<Dimension?>, onChange: (List<Dimension?>) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("LIVE", style = MaterialTheme.typography.labelLarge)
+        slots.forEachIndexed { i, dim ->
+            FilterChip(
+                selected = dim != null,
+                onClick = {
+                    val next = when (dim) {
+                        Dimension.LEAN -> Dimension.ACCEL
+                        Dimension.ACCEL -> Dimension.PITCH
+                        Dimension.PITCH -> Dimension.SPEED
+                        Dimension.SPEED -> null
+                        null -> Dimension.LEAN
+                    }
+                    onChange(slots.toMutableList().also { it[i] = next })
+                },
+                label = { Text(dim?.label ?: "OFF", fontSize = 14.sp) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScreenModeRow(mode: ScreenMode, onChange: (ScreenMode) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("SCREEN", style = MaterialTheme.typography.labelLarge)
+        FilterChip(
+            selected = mode == ScreenMode.LIVE,
+            onClick = { onChange(ScreenMode.LIVE) },
+            label = { Text("live display", fontSize = 14.sp) },
+        )
+        FilterChip(
+            selected = mode == ScreenMode.BACKGROUND,
+            onClick = { onChange(ScreenMode.BACKGROUND) },
+            label = { Text("off (background)", fontSize = 14.sp) },
+        )
     }
 }
 
@@ -183,7 +295,7 @@ private fun StartCard(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                CircularProgressIndicator(Modifier.height(28.dp))
+                CircularProgressIndicator(Modifier.width(28.dp).height(28.dp))
                 Column {
                     Text("Initializing …", style = MaterialTheme.typography.titleLarge)
                     Text(
@@ -219,48 +331,6 @@ private fun StartCard(
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatusBlock(status: SessionStatus) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            val el = status.elapsedMs / 1000
-            Text(
-                "%d:%02d:%02d · %s · %.1f MB".format(
-                    el / 3600, el / 60 % 60, el % 60,
-                    status.rideFileName ?: "-",
-                    status.fileBytes / 1e6,
-                ),
-                style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-                "accel %.0f Hz · gyro %.0f Hz · mag %.0f Hz · rotvec %.0f Hz · baro %.0f Hz".format(
-                    status.ratesHz[0], status.ratesHz[1], status.ratesHz[2],
-                    status.ratesHz[3], status.ratesHz[4],
-                ),
-            )
-            val gps = status.gps
-            Text(
-                if (gps?.hasFix == true) {
-                    "GPS: ±%.0f m · %.1f m/s · sats %d/%d".format(
-                        gps.hAccM ?: -1f, gps.speedMps ?: 0f, gps.satsUsed, gps.satsTotal,
-                    )
-                } else {
-                    "GPS: no fix (sats ${status.gps?.satsUsed ?: 0}/${status.gps?.satsTotal ?: 0})"
-                },
-            )
-            Text("Dropped events: ${status.drops}")
-            if (status.elapsedMs > 15_000 && status.ratesHz[0] > 0 &&
-                status.ratesHz[0] < Config.LOW_RATE_WARN_HZ
-            ) {
-                Text(
-                    "⚠ Accel rate low — check the microphone privacy toggle (caps sensors at 200 Hz).",
-                    color = MaterialTheme.colorScheme.error,
-                )
             }
         }
     }
