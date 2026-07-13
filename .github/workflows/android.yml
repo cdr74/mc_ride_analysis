@@ -67,7 +67,11 @@ jobs:
           fi
           if [ "$DIGEST" != "$EXPECTED" ]; then
             echo "::error::APK signature $DIGEST does not match the shared debug key $EXPECTED"
-            keytool -list -keystore ~/.android/debug.keystore -storepass android || true
+            echo "--- all keystores modified in the last 30 min ---"
+            sudo find / -xdev \( -name '*.keystore' -o -name '*.jks' \) -mmin -30 2>/dev/null | while read -r f; do
+              echo "== $f"
+              keytool -list -keystore "$f" -storepass android 2>/dev/null | grep -i fingerprint || true
+            done
             exit 1
           fi
 
