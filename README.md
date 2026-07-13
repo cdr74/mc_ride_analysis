@@ -107,18 +107,29 @@ Users install the prebuilt APK from the [latest GitHub release](https://github.c
 ./gradlew lint testDebugUnitTest # static checks + unit tests
 ```
 
+CI (`.github/workflows/android.yml`) runs the same lint + unit tests + debug build on
+every push and PR to `main` and uploads the APK as a build artifact.
+
 ## Cut a release
 
-Bump `versionCode`/`versionName` in `app/build.gradle.kts`, then:
+Bump `versionCode`/`versionName` in `app/build.gradle.kts`, commit (docs in sync — see
+`CLAUDE.md`), then tag and push:
 
 ```bash
-./gradlew testDebugUnitTest assembleDebug
-cp app/build/outputs/apk/debug/app-debug.apk ridelogger-<version>.apk
-gh release create v<version> ridelogger-<version>.apk --title "RideLogger <version>" --notes "..."
+git tag v<version>
+git push origin main v<version>
 ```
 
-Releases ship the debug-signed APK (no Play signing). Build releases from the same
-machine so the debug keystore — and thus the APK signature — stays stable across updates.
+CI builds the APK, verifies the tag matches `versionName`, and creates the GitHub
+release with `ridelogger-<version>.apk` attached (ADR 0006). Edit the auto-generated
+release notes on GitHub afterwards if needed.
+
+Releases ship the debug-signed APK (no Play signing). CI signs with the shared debug
+keystore stored in the `DEBUG_KEYSTORE_BASE64` repo secret — the same key as local
+`installDebug` builds — so the APK signature stays stable across updates and installs
+over locally built versions. If the keystore is ever regenerated, re-upload it
+(`gh secret set DEBUG_KEYSTORE_BASE64 --body "$(base64 -w0 ~/.android/debug.keystore)"`)
+and note that users must uninstall/reinstall once.
 
 ## Validate an exported ride
 

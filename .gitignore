@@ -27,3 +27,6 @@ data/
 
 # OS
 .DS_Store
+
+# release APKs are CI-built; never commit them
+*.apk

@@ -94,9 +94,11 @@ adb shell dumpsys sensorservice  # inspect delivered sensor rates on device
 ```
 
 **Distribution:** users install the prebuilt APK from GitHub releases, they never build.
-After bumping `versionCode`/`versionName`, run tests + `assembleDebug` and publish with
-`gh release create v<version> ridelogger-<version>.apk` (process in README.md). Keep
-releases debug-signed from the same machine so upgrades keep installing over each other.
+Releases are built by CI (`.github/workflows/android.yml`, ADR 0006): after bumping
+`versionCode`/`versionName`, push a matching `v<version>` tag and CI creates the release
+with the APK attached (process in README.md). CI signs with the shared debug keystore
+(repo secret `DEBUG_KEYSTORE_BASE64`, same key as this machine's `~/.android/debug.keystore`)
+so upgrades keep installing over each other and over local `installDebug` builds.
 
 ## Architecture map (details in DESIGN.md)
 
