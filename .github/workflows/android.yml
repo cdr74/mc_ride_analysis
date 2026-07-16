@@ -41,10 +41,13 @@ jobs:
             echo "No keystore secret (fork PR?) — building with ephemeral debug key"
             exit 0
           fi
-          mkdir -p ~/.android
+          # AGP on the runner reads $XDG_CONFIG_HOME/.android (~/.config/.android),
+          # not ~/.android — seeding only the latter made CI sign with a fresh
+          # ephemeral key (run 29276030082). Seed both locations.
+          mkdir -p ~/.android ~/.config/.android
           echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
+          cp ~/.android/debug.keystore ~/.config/.android/debug.keystore
           keytool -list -keystore ~/.android/debug.keystore -storepass android | grep -i sha
-          env | grep -i android || true
 
       - name: Lint, unit tests, build
         run: ./gradlew lint testDebugUnitTest assembleDebug
