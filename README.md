@@ -7,10 +7,12 @@ the route. No external sensors, no cloud, no account, no map tracking — everyt
 measured and stored on the phone, and a ride is *your* data series over time.
 
 Under the hood it is a data-logging research project: the phone records
-research-grade raw sensor data, the estimators were developed and validated offline
-in Python against real rides, and only the validated math runs in the app. That's why
-the numbers can be trusted — every one of them has been cross-checked against
-independent references (details below).
+research-grade raw sensor data, the estimators were developed and checked offline in
+Python against real rides, and only that math runs in the app. The numbers are
+cross-checked between independent estimation methods and physical sanity checks —
+honestly though, never against dedicated reference hardware (a RaceBox-style
+reference unit is an open item), so treat them as good estimates, not certified
+measurements (details below).
 
 ---
 
@@ -21,9 +23,16 @@ independent references (details below).
 1. On the **phone's browser**, open the
    [latest release](https://github.com/cdr74/mc_ride_analysis/releases/latest) and
    download `ridelogger-<version>.apk`.
-2. Open the download and allow the install (sideload). Android 10+; the validated
+2. Open the download and allow the install (sideload). Android 10+; the development
    device is the Pixel 8. Updates install straight over the previous version.
 3. No build tools, no Play Store, no sign-up.
+
+**Phones differ.** All measurement quality depends on the phone's sensors: rates and
+noise vary a lot between models, and not every phone has a barometer — without one
+the ELEVATION graph disappears and pitch shows hills instead of being road-relative.
+Everything documented here (400 Hz IMU, the accuracy figures) is from the Pixel 8;
+on other hardware the app degrades gracefully but the numbers come with less
+confidence.
 
 ### Ride
 
@@ -42,8 +51,9 @@ then everything works by itself.
 
 ### What the numbers mean
 
-- **LEAN** — real lean angle, validated against four independent estimators. Blank
-  below 18 km/h (bar movement corrupts it there — by design, not a bug).
+- **LEAN** — your lean angle; four independent estimation methods agree on it within
+  a few degrees. Blank below 18 km/h (bar movement corrupts it there — by design,
+  not a bug).
 - **ACCEL / BRAKE** — longitudinal force in m/s², positive forward.
 - **PITCH** — what the *bike* does relative to the *road*: fork dive, squat,
   wheelies. Hills are subtracted using the barometer, so this bar should be boring —
@@ -117,9 +127,11 @@ speed × yaw rate). The production estimator is a complementary filter: integrat
 gyro roll rate (instantaneous), continuously correct toward the kinematic lean
 (band-limited to 1.5 Hz — sub-second yaw spikes from bumps are not lean) while
 moving, toward gravity when nearly stopped. Lean is **never reported below 18 km/h**,
-where bar-mount steering coupling corrupts it. Validation on real rides: four
-independent estimators agree on max lean within a few degrees; the causal
-(real-time-capable) variant tracks the offline reference to 0.35° RMS with ~40 ms lag.
+where bar-mount steering coupling corrupts it. Checked on real rides: four
+independent estimators agree on max lean within a few degrees, and the causal
+(real-time-capable) variant tracks the offline reference to 0.35° RMS with ~40 ms
+lag. That is agreement *between methods* on the same data — no comparison against
+external reference instrumentation has been done (deferred, DESIGN.md §11).
 
 **Acceleration / braking** — longitudinal specific force in the bike frame (m/s², raw
 unit), low-passed below the 22–105 Hz engine-vibration band (measured: < 3 % of
