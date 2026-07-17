@@ -44,15 +44,18 @@ Behavior changes land in the SAME commit or an earlier one than the code — nev
 later one. If a push is urgent, the docs are part of the urgency.
 
 **Project phase (since 2026-07-12):** MVP done (M1–M4), offline fusion validated (M5),
-and **M6 — the ride-display version — is implemented and released as v0.3.0**
-(ADR 0004/0005; UI spec `docs/ui-mockup.md`, followed exactly — any UI change goes
-through the mockup first). Calibration is automatic (`analysis/calibrate.py` is the
-reference; `AutoCalibrator.kt` mirrors its thresholds — keep them in sync). The on-device
-estimator is a port of `analysis/fusion/compare_ride.py` (fused_causal); the port is
-guarded by `LeanEstimatorPortTest` against a committed real-ride fixture — any estimator
-change must keep that test green and re-derive the fixture when the reference changes.
-Outstanding: field verification of 0.3.0 on the phone (§9), pitch validation (needs
-supermoto wheelie data; iOS logger for it is parked).
+and **M6 — the ride-display version — is implemented, released, and field-reviewed**
+(v0.3.3; ADR 0004/0005; UI spec `docs/ui-mockup.md`, followed exactly — any UI change
+goes through the mockup first). Field review 2026-07-17 (two commute rides): lean and
+speed confirmed; pitch turn-coupling fixed via Euler kinematics (ADR 0007). Calibration
+is automatic (`analysis/calibrate.py` is the reference; `AutoCalibrator.kt` mirrors its
+thresholds — keep them in sync). The on-device lean/accel estimator is a port of
+`analysis/fusion/compare_ride.py` (fused_causal); the port is guarded by
+`LeanEstimatorPortTest` against a committed real-ride fixture — any estimator change
+must keep that test green and re-derive the fixture when the reference changes. The
+pitch channel has no offline reference; it is defined by `LeanEstimator.kt` + ADR 0007
+and guarded by the synthetic `LeanEstimatorTest`. Outstanding: pitch wheelie-band
+validation (needs supermoto wheelie data; iOS logger for it is parked).
 
 ## Non-negotiable data-integrity rules
 

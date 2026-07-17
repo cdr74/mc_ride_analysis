@@ -236,8 +236,8 @@ object RideAnalyzer {
 
     // --- JSON cache (sidecar file, version-gated)
 
-    // v2: GPS-aided pitch fix (phantom +46° under acceleration) — recompute old caches
-    private const val CACHE_VERSION = 2
+    // v3: Euler pitch kinematics (phantom nose-up in leaned turns, ADR 0007) — recompute
+    private const val CACHE_VERSION = 3
 
     private fun toJson(a: Analysis): JSONObject = JSONObject().apply {
         put("version", CACHE_VERSION)

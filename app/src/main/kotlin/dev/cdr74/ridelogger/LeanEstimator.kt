@@ -20,8 +20,10 @@ import kotlin.math.sqrt
  *           kinematic lean atan(v·ψ̇/g) (LP 1.5 Hz) when moving, gravity roll when slow;
  *           NOT PRODUCED below 18 km/h (bar-turn coupling, DESIGN.md §11)
  *     accel: longitudinal specific force, LP 1.5 Hz for a flicker-free bar
- *     pitch: gyro pitch-rate integration + slow correction (τ = 5 s) toward gravity
- *            pitch — v1, unvalidated until real wheelie data exists
+ *     pitch: Euler pitch-rate integration (θ̇ = -wy·cosφ + wz·sinφ, using the current
+ *            roll — raw -wy alone reads leaned turns as phantom nose-up, ADR 0007)
+ *            + slow correction (τ = 5 s) toward gravity pitch — wheelie band still
+ *            unvalidated until real wheelie data exists
  *
  * Threading: onAccel/onGyro are called on the sensor thread (no allocation, plain
  * float math); onGpsFix from the main thread (volatile hand-off); the [Output] is
@@ -220,7 +222,11 @@ class LeanEstimator(
         } else {
             0.0
         }
-        theta += -wy * dt
+        // Euler pitch rate, not raw body rate: in a leaned turn the yaw rate projects
+        // into the bike y-axis (wy = ψ̇·sinφ), so integrating -wy alone turns every
+        // corner into Δheading·sin(lean) of phantom nose-up — +30–39° on a commute
+        // (observed in the field, 0.3.2 review, ADR 0007). The wz·sinφ term cancels it.
+        theta += (-wy * cos(phi) + wz * sin(phi)) * dt
         theta += dt / TAU_PITCH_S * (gravPitch - theta)
 
         // longitudinal specific force (raw unit, m/s²), smoothed for a flicker-free bar

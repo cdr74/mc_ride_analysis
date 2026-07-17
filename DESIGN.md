@@ -1,12 +1,15 @@
 # DESIGN.md — RideLogger: Android Motorcycle Telemetry Logger (MVP)
 
-Status: Draft 1.1 · Owner: Chris · Last updated: 2026-07-12
+Status: Draft 1.1 · Owner: Chris · Last updated: 2026-07-17
 
 > **Direction update (2026-07-12):** the MVP data-collection goal is met, and the
 > **ride-display version shipped the same day as v0.3.0** (ADR 0005, UI spec in
 > `docs/ui-mockup.md`): calibration is fully automatic from ride phases (ADR 0004 —
 > guided flow and the marker concept are gone), live bars + post-ride views are in.
-> Field verification of 0.3.0 per §9 is still outstanding.
+> Field-reviewed 2026-07-17 on two commute rides: lean and speed confirmed good
+> (GPS speed cross-checked against position-derived speed to ~1 %; the bike's
+> speedometer over-reads ~6–8 %, which is normal); pitch read leaned turns as
+> phantom nose-up — fixed in v0.3.3 by Euler pitch kinematics (ADR 0007).
 
 ---
 
@@ -306,6 +309,7 @@ SharedPreferences next to where they're used.
 | Vibration aliasing / mount resonance | **bar mount = worst case on the CP2 twin**: damped mount mandatory; log mount description; inspect PSD offline before trusting any ride |
 | Steering angle couples into roll/yaw (bar mount, ~24–25° rake) | negligible at speed (δ of a few degrees ⇒ ~1–2° roll error); **large at slow speed / full lock**. Decided 2026-07-12: lean is **not produced below 18 km/h (5 m/s)** anywhere — fusion outputs NaN, displays blank the lean slot/trace; above that speed bar turn is small enough |
 | Fork travel (dive/squat) couples into pitch (bar mount) | wheelie signal (10–40°) dominates dive/squat (~2–4°); treat small-pitch analysis as suspension-contaminated |
+| Yaw rate projects into body pitch rate in leaned turns (wy = ψ̇·sinφ ⇒ ~Δheading·sin(lean) phantom nose-up per corner) | live estimator integrates the Euler pitch rate θ̇ = −wy·cosφ + wz·sinφ instead of −wy (ADR 0007, v0.3.3; verified on 2026-07-17 commute rides) |
 | Magnetometer unusable near engine | expected; mag is logged but fusion must not depend on it |
 | Thermal throttling on hot days reduces rate | rate re-measured continuously; gap analysis flags it |
 | Phone OIS damage from vibration | use damped mount (documented Apple warning; applies to Android OIS too) |
@@ -326,4 +330,4 @@ same ride file — deferred; would validate but not block the MVP.
 | M3 | Field hardening | §9 checklist green on target phone ✔ (2026-07-12) |
 | M4 | First instrumented rides + analysis kickoff | rides archived, validated, calibration solved ✔ (2026-07-12, 2 rides / 54.6 km) |
 | M5 | Offline fusion validated (`analysis/fusion/`) | roll estimator agrees with rotvec baseline on real rides (speed > 5 m/s mask); wheelie/pitch plausible. *Status 2026-07-12: four estimators cross-agree (max lean ±23–28° both rides, Madgwick↔rotvec 1.8–2.2° RMS); causal live variant costs 0.35° RMS / 40 ms; pending rider corner-validation; wheelie data outstanding (needs the supermoto dataset)* |
-| M6 | Ride-display app version (`docs/ui-mockup.md`, ADR 0004/0005) | post-ride view + live bars on device; guided calib & markers removed. ✔ implemented + released v0.3.0 (2026-07-12); **field verification per §9 outstanding** |
+| M6 | Ride-display app version (`docs/ui-mockup.md`, ADR 0004/0005) | post-ride view + live bars on device; guided calib & markers removed. ✔ implemented + released v0.3.0 (2026-07-12); field-reviewed 2026-07-17 (2 commute rides): lean & speed confirmed, pitch turn-coupling found and fixed in v0.3.3 (ADR 0007). **Remaining: pitch wheelie-band validation (supermoto data)** |

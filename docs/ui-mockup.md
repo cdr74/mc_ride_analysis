@@ -240,6 +240,13 @@ row reuses the live-display bar grammar (fill = session max reach, ticks = extre
   acceleration before use (a 6 m/s² launch otherwise reads as ~38° phantom wheelie;
   +46° was observed). Still a v1 channel until real wheelie data exists.
 
+## Field-review refinements (0.3.2 → 0.3.3, from the commute-ride review)
+
+No UI change. Estimator-only release: pitch integrates the Euler pitch rate
+(θ̇ = −wy·cosφ + wz·sinφ) so leaned turns no longer read as +30–39° phantom nose-up
+(ADR 0007); cached post-ride analyses recompute automatically on next open. Speed was
+verified correct (the bike's speedometer over-reads — normal).
+
 ## Decision log & remaining questions
 
 | # | Topic | Status |

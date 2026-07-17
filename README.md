@@ -18,10 +18,11 @@ the working rules, `docs/adr/` records every decision.
 2. **✅ Offline fusion** (`analysis/`) — calibration + lean estimation, validated on real
    rides; the causal live variant costs 0.35° RMS / 40 ms vs the offline reference.
    Pitch/wheelie validation still awaits real wheelie data.
-3. **✅ Ride display** (v0.3.0, spec in `docs/ui-mockup.md`) — live bars with session
+3. **✅ Ride display** (v0.3.x, spec in `docs/ui-mockup.md`) — live bars with session
    high-watermarks, post-ride analysis in-app, zero interaction while moving. The
    on-device estimator is a verified port of the offline reference (RMS 0.19° on a
-   real-ride fixture). Field verification on the road still pending.
+   real-ride fixture). Field-reviewed on real rides (2026-07-17): lean and speed
+   confirmed; pitch turn-coupling found and fixed in v0.3.3 (ADR 0007).
 4. *Parked:* a minimal iOS logger writing the same ride-file format (wheelie data from a
    second bike).
 
@@ -77,7 +78,8 @@ reference to 0.35° RMS with ~40 ms lag.
 unit), low-passed below the 22–105 Hz engine-vibration band (measured: < 3 % of
 vibration power falls inside the < 10 Hz dynamics band on the damped mount).
 
-**Pitch / wheelie** — gravity/gyro pitch in the bike frame. Fork dive and squat
+**Pitch / wheelie** — gravity/gyro pitch in the bike frame, integrated with Euler
+kinematics so leaned turns don't read as phantom nose-up (ADR 0007). Fork dive and squat
 contaminate the small-pitch range (~2–4°), so only the wheelie band (10–40°) is treated
 as signal. Awaits real wheelie data (phase 4).
 
