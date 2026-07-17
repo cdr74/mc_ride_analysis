@@ -125,7 +125,7 @@ object RideAnalyzer {
         val elevV = ArrayList<Float>(4000)
         var elevT0 = -1L
         var elevPrevNs = 0L
-        var elevLastAddedNs = Long.MIN_VALUE
+        var elevLastAddedNs = -1L // -1 = nothing added yet (MIN_VALUE would overflow t - last)
         var elevLp1 = Double.NaN
         var elevLp2 = Double.NaN
         var elevRef = Double.NaN
@@ -156,7 +156,7 @@ object RideAnalyzer {
                 }
                 elevLp1 += dt / (4.0 + dt) * (alt - elevLp1)
                 elevLp2 += dt / (4.0 + dt) * (elevLp1 - elevLp2)
-                if (t - elevLastAddedNs >= 1_000_000_000L) {
+                if (elevLastAddedNs < 0 || t - elevLastAddedNs >= 1_000_000_000L) {
                     elevLastAddedNs = t
                     elevT.add((t - elevT0) / 1e9f)
                     elevV.add((elevLp2 - elevRef).toFloat())
@@ -287,8 +287,9 @@ object RideAnalyzer {
 
     // --- JSON cache (sidecar file, version-gated)
 
-    // v4: bike-relative pitch + elevation trace (ADR 0008) — recompute old caches
-    private const val CACHE_VERSION = 4
+    // v5: 0.4.0 wrote v4 caches with an always-empty elevation trace (sentinel
+    // overflow in the ~1 Hz decimation) — recompute them
+    private const val CACHE_VERSION = 5
 
     private fun toJson(a: Analysis): JSONObject = JSONObject().apply {
         put("version", CACHE_VERSION)
