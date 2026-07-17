@@ -133,11 +133,12 @@ private fun Summary(
         HorizontalDivider()
 
         DimensionRow(Dimension.SPEED, a.trace(Dimension.SPEED), "max %.0f km/h".format(a.maxSpeedKmh), onOpen)
-        for (dim in listOf(Dimension.LEAN, Dimension.ACCEL, Dimension.PITCH)) {
+        for (dim in listOf(Dimension.LEAN, Dimension.ACCEL, Dimension.PITCH, Dimension.ELEVATION)) {
             val t = a.trace(dim) ?: continue
             val stats = validStats(t)
             val label = when (dim) {
                 Dimension.LEAN -> "◄ %.0f° / %.0f° ►".format(abs(stats.first), stats.second)
+                Dimension.ELEVATION -> "%.0f m climb range".format(stats.second - stats.first)
                 else -> "%.1f / +%.1f %s".format(stats.first, stats.second, dim.unit)
             }
             DimensionRow(dim, t, label, onOpen)
@@ -198,7 +199,7 @@ private fun DimensionRow(
                 Text(dim.label, fontWeight = FontWeight.SemiBold)
                 Text(statsLabel, color = Ui.Muted)
             }
-            if (trace != null) {
+            if (trace != null && !dim.freeRange) {
                 val stats = validStats(trace)
                 WatermarkBar(
                     dim,
@@ -240,7 +241,7 @@ private fun DimensionDetail(
             if (mnI < 0 || v < trace.v[mnI]) mnI = i
             if (mxI < 0 || v > trace.v[mxI]) mxI = i
         }
-        listOfNotNull(mnI.takeIf { it >= 0 && dim.centerOrigin }, mxI.takeIf { it >= 0 })
+        listOfNotNull(mnI.takeIf { it >= 0 && (dim.centerOrigin || dim.freeRange) }, mxI.takeIf { it >= 0 })
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -342,24 +343,39 @@ private fun TraceCanvas(
 
         // y-range from the visible window, never tighter than the dimension's calm
         // floor — ±2° of real steering wander on an autoscaled ±5 read as "twitchy
-        // flopping" in the 0.3.3 field review
+        // flopping" in the 0.3.3 field review. Free-range dimensions (elevation)
+        // follow the window's min..max instead of an origin.
         var lo = 0
         while (lo < trace.t.size && trace.t[lo] < win.start) lo++
         var hi = lo
-        var yMax = dim.calmFloor
-        var yMin = if (dim.centerOrigin) -dim.calmFloor else 0f
+        var yMax = if (dim.freeRange) -Float.MAX_VALUE else dim.calmFloor
+        var yMin = when {
+            dim.freeRange -> Float.MAX_VALUE
+            dim.centerOrigin -> -dim.calmFloor
+            else -> 0f
+        }
         while (hi < trace.t.size && trace.t[hi] <= win.endInclusive) {
             val v = trace.v[hi]
             if (!v.isNaN()) {
                 if (dim.centerOrigin) {
-                    yMax = max(yMax, abs(v)); yMin = -yMax
+                    yMax = max(yMax, abs(v))
                 } else {
                     yMax = max(yMax, v)
+                    if (dim.freeRange) yMin = min(yMin, v)
                 }
             }
             hi++
         }
         if (dim.centerOrigin) yMin = -yMax
+        if (dim.freeRange) {
+            if (yMin > yMax) { // no valid samples in the window
+                yMin = 0f; yMax = dim.calmFloor
+            }
+            val mid = (yMin + yMax) / 2f
+            val half = max(yMax - yMin, dim.calmFloor) / 2f * 1.1f
+            yMin = mid - half
+            yMax = mid + half
+        }
         fun px(t: Float) = (t - win.start) / span * w
         fun py(v: Float) = h - (v - yMin) / (yMax - yMin) * h
 
@@ -376,7 +392,7 @@ private fun TraceCanvas(
         var gv = kotlin.math.ceil(yMin / step) * step
         while (gv <= yMax + 1e-3f) {
             val y = py(gv)
-            if (abs(gv) > 1e-3f) drawLine(Ui.Track, Offset(0f, y), Offset(w, y))
+            if (abs(gv) > 1e-3f || !dim.centerOrigin) drawLine(Ui.Track, Offset(0f, y), Offset(w, y))
             val labelled = (Math.round(gv / step) % 2 == 0)
             if (labelled && y > 14f && y < h - 10f) {
                 drawContext.canvas.nativeCanvas.drawText(

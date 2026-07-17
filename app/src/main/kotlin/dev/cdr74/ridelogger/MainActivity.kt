@@ -266,6 +266,7 @@ private fun SlotPicker(slots: List<Dimension?>, onChange: (List<Dimension?>) -> 
                         Dimension.ACCEL -> Dimension.PITCH
                         Dimension.PITCH -> Dimension.SPEED
                         Dimension.SPEED -> null
+                        Dimension.ELEVATION -> null // post-ride only, never a live slot
                         null -> Dimension.LEAN
                     }
                     onChange(slots.toMutableList().also { it[i] = next })

@@ -129,6 +129,8 @@ class RideLoggerService : Service() {
                     estimator.onAccel(tNs, x, y, z)
                 override fun onGyro(tNs: Long, x: Float, y: Float, z: Float) =
                     estimator.onGyro(tNs, x, y, z)
+                override fun onBaro(tNs: Long, hPa: Float) =
+                    estimator.onBaro(tNs, hPa)
             },
         ).also { this.sensors = it }
         val streamInfo = sensors.start()

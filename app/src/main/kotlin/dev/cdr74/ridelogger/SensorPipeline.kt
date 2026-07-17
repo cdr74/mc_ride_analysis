@@ -17,13 +17,14 @@ import java.util.concurrent.atomic.AtomicLongArray
 class SensorPipeline(
     private val sensorManager: SensorManager,
     private val ring: RingBuffer,
-    /** Optional live-estimator tap: bias-corrected accel/gyro, called on the sensor thread. */
+    /** Optional live-estimator tap: bias-corrected accel/gyro + raw baro, sensor thread. */
     private val tap: Tap? = null,
 ) : SensorEventListener {
 
     interface Tap {
         fun onAccel(tNs: Long, x: Float, y: Float, z: Float)
         fun onGyro(tNs: Long, x: Float, y: Float, z: Float)
+        fun onBaro(tNs: Long, hPa: Float)
     }
 
     data class StreamInfo(
@@ -101,15 +102,20 @@ class SensorPipeline(
 
         // Live-estimator tap: plain float math downstream, nothing here may block.
         // Uncalibrated variants carry the factory bias in values[3..5]; subtract it.
-        if (tap != null && (stream == Config.STREAM_ACCEL || stream == Config.STREAM_GYRO)) {
-            val v = event.values
-            val bx = if (v.size >= 6) v[3] else 0f
-            val by = if (v.size >= 6) v[4] else 0f
-            val bz = if (v.size >= 6) v[5] else 0f
-            if (stream == Config.STREAM_ACCEL) {
-                tap.onAccel(event.timestamp, v[0] - bx, v[1] - by, v[2] - bz)
-            } else {
-                tap.onGyro(event.timestamp, v[0] - bx, v[1] - by, v[2] - bz)
+        if (tap != null) {
+            when (stream) {
+                Config.STREAM_ACCEL, Config.STREAM_GYRO -> {
+                    val v = event.values
+                    val bx = if (v.size >= 6) v[3] else 0f
+                    val by = if (v.size >= 6) v[4] else 0f
+                    val bz = if (v.size >= 6) v[5] else 0f
+                    if (stream == Config.STREAM_ACCEL) {
+                        tap.onAccel(event.timestamp, v[0] - bx, v[1] - by, v[2] - bz)
+                    } else {
+                        tap.onGyro(event.timestamp, v[0] - bx, v[1] - by, v[2] - bz)
+                    }
+                }
+                Config.STREAM_BARO -> tap.onBaro(event.timestamp, event.values[0])
             }
         }
     }

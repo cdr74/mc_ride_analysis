@@ -126,12 +126,19 @@ give "forward" — `docs/adr/0004-automatic-calibration.md`). What that means in
 
 Tap **STOP** (bottom of the live display). The app closes the ride file and opens the
 **post-ride summary** automatically: distance, duration, and every dimension with its
-session extremes. Tap a dimension for the full trace over time — pinch to zoom, drag to
-pan, tap for the value at that moment; time gridlines label the x-axis and the hint
-line shows how much of the ride is on screen ("… 2 min 30 s shown"); the EXTREMES list
-jumps straight to the deepest lean or hardest braking. The y-scale fits the visible
-window but never zooms tighter than a per-dimension floor (lean ±15°), so the small
-steering wander every bike has on a straight doesn't get blown up to look dramatic. The first open of a ride replays all of its raw data once and
+session extremes, plus an **ELEVATION** row — the ride's altitude profile from the
+phone's barometer (post-ride only, meters relative to the start). Tap a dimension for
+the full trace over time — pinch to zoom, drag to pan, tap for the value at that
+moment; time gridlines label the x-axis and the hint line shows how much of the ride
+is on screen ("… 2 min 30 s shown"); the EXTREMES list jumps straight to the deepest
+lean or hardest braking. The y-scale fits the visible window but never zooms tighter
+than a per-dimension floor (lean ±15°), so the small steering wander every bike has on
+a straight doesn't get blown up to look dramatic.
+
+**Pitch is measured against the road, not the horizon** (0.4.0): the road's slope is
+subtracted using the barometer, so riding up an 8 % hill shows ~0° — the pitch bar and
+trace show only what the *bike* does: fork dive under braking, squat when accelerating,
+wheelies. The road itself is in the ELEVATION graph instead. The first open of a ride replays all of its raw data once and
 shows "computing…" with a progress percentage — expect ~10–30 s for a long ride — then
 the result is cached and every later open is instant. Rides remain in the **Rides** list.
 
@@ -185,7 +192,8 @@ next ride. The file format itself is documented in `analysis/schema.md`.
 | Startup error "Sensor rate capped at 200 Hz" | System mic privacy toggle is OFF — the error card's button takes you to the setting; turn microphone access on and return to the app |
 | Stuck on "Initializing … waiting for GPS fix" | Be outdoors with sky view; confirm Location permission is *Precise*; first fix after a long time can take a minute |
 | Lean bar shows "—" while riding | Below 18 km/h that's intentional (bar-turn coupling). Above 18 km/h with "calibrating…": first ride on this install — ride steadily for a few minutes, it resolves itself |
-| Pitch numbers look too large | Fixed in 0.3.2 (acceleration no longer reads as phantom wheelie) and 0.3.3 (leaned turns no longer read as nose-up spikes). Pitch remains an indicative v1 estimate until validated against real wheelie data |
+| Pitch numbers look too large | Fixed in 0.3.2 (acceleration no longer reads as phantom wheelie) and 0.3.3 (leaned turns no longer read as nose-up spikes). Since 0.4.0 pitch is relative to the road (slope subtracted) — on any normal ride it should hover near 0° with small dive/squat blips. It remains an indicative v1 estimate until validated against real wheelie data |
+| Pitch shows hills / ELEVATION row missing | Both mean the phone has no (working) barometer — pitch then falls back to absolute (road slope included) and the elevation graph is hidden. The Pixel 8 has one; other phones may not |
 | Speed reads ~5 km/h below the bike's speedometer | The app is right — GPS speed is accurate to ~1 km/h; motorcycle speedometers are required to never read low and typically over-read 5–10 % |
 | Rates drop during a long hot ride | Thermal throttling — expected on hot days; the gap analysis in the validator will show it. Shade the phone if possible |
 | Dropped events > 0 | Should not happen at MVP write rates — validate the ride; if it recurs, note phone temperature and file an issue |

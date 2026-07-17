@@ -39,12 +39,14 @@ object RideAnalyzer {
         val lean: Trace?,
         val accel: Trace?,
         val pitch: Trace?,
+        val elevation: Trace?,
     ) {
         fun trace(dim: Dimension): Trace? = when (dim) {
             Dimension.SPEED -> speed
             Dimension.LEAN -> lean
             Dimension.ACCEL -> accel
             Dimension.PITCH -> pitch
+            Dimension.ELEVATION -> elevation
         }
     }
 
@@ -117,6 +119,16 @@ object RideAnalyzer {
         val gpsT = ArrayList<Float>(4000)
         val gpsV = ArrayList<Float>(4000)
         var gpsT0 = -1L
+        // elevation trace (ADR 0008): baro altitude, two cascaded one-pole LPs (τ = 4 s
+        // like the estimator's grade chain), relative to ride start, ~1 Hz points
+        val elevT = ArrayList<Float>(4000)
+        val elevV = ArrayList<Float>(4000)
+        var elevT0 = -1L
+        var elevPrevNs = 0L
+        var elevLastAddedNs = Long.MIN_VALUE
+        var elevLp1 = Double.NaN
+        var elevLp2 = Double.NaN
+        var elevRef = Double.NaN
         replay(
             ride,
             onImu = { stream, t, x, y, z ->
@@ -128,6 +140,26 @@ object RideAnalyzer {
                     if (gpsT0 < 0) gpsT0 = t
                     gpsT.add((t - gpsT0) / 1e9f)
                     gpsV.add(speed * 3.6f)
+                }
+            },
+            onBaro = { t, hPa ->
+                est.onBaro(t, hPa)
+                val alt = 44330.0 * (1.0 - Math.pow(hPa / 1013.25, 0.1903))
+                var dt = (t - elevPrevNs) / 1e9
+                elevPrevNs = t
+                if (dt !in 0.005..2.0) dt = 0.08
+                if (elevLp1.isNaN()) {
+                    elevLp1 = alt
+                    elevLp2 = alt
+                    elevRef = alt
+                    elevT0 = t
+                }
+                elevLp1 += dt / (4.0 + dt) * (alt - elevLp1)
+                elevLp2 += dt / (4.0 + dt) * (elevLp1 - elevLp2)
+                if (t - elevLastAddedNs >= 1_000_000_000L) {
+                    elevLastAddedNs = t
+                    elevT.add((t - elevT0) / 1e9f)
+                    elevV.add((elevLp2 - elevRef).toFloat())
                 }
             },
             onProgress = { onProgress(0.4f + it * 0.6f) },
@@ -160,6 +192,8 @@ object RideAnalyzer {
             lean = if (r != null) Trace(tOut.toFloatArray(), lean.toFloatArray()) else null,
             accel = if (r != null) Trace(tOut.toFloatArray(), accel.toFloatArray()) else null,
             pitch = if (r != null) Trace(tOut.toFloatArray(), pitch.toFloatArray()) else null,
+            // baro-independent of calibration; null on devices without a barometer
+            elevation = if (elevT.size >= 2) Trace(elevT.toFloatArray(), elevV.toFloatArray()) else null,
         )
     }
 
@@ -176,6 +210,7 @@ object RideAnalyzer {
         onGps: (tNs: Long, speedMps: Float?, bearingDeg: Float?) -> Unit,
         onProgress: (Float) -> Unit,
         checkActive: () -> Unit,
+        onBaro: ((tNs: Long, hPa: Float) -> Unit)? = null,
     ) {
         val db = SQLiteDatabase.openDatabase(ride.path, null, SQLiteDatabase.OPEN_READONLY)
         db.use {
@@ -197,6 +232,18 @@ object RideAnalyzer {
             }
             var gi = 0
 
+            // baro rows are few (~12.5 Hz) — preload like GPS and merge in emit()
+            val baro = ArrayList<Pair<Long, Float>>(20_000)
+            if (onBaro != null) {
+                it.rawQuery(
+                    "SELECT t_ns, v0 FROM imu WHERE stream=${Config.STREAM_BARO} ORDER BY t_ns",
+                    null,
+                ).use { c ->
+                    while (c.moveToNext()) baro.add(c.getLong(0) to c.getFloat(1))
+                }
+            }
+            var bi = 0
+
             val sql = "SELECT t_ns, v0, v1, v2, b0, b1, b2 FROM imu WHERE stream=%d ORDER BY t_ns"
             it.rawQuery(sql.format(Config.STREAM_ACCEL), null).use { ca ->
                 it.rawQuery(sql.format(Config.STREAM_GYRO), null).use { cg ->
@@ -209,6 +256,10 @@ object RideAnalyzer {
                             val (gt, speed, bearing) = gps[gi]
                             onGps(gt, speed, bearing)
                             gi++
+                        }
+                        while (bi < baro.size && baro[bi].first <= t) {
+                            onBaro?.invoke(baro[bi].first, baro[bi].second)
+                            bi++
                         }
                         val bx = if (c.isNull(4)) 0f else c.getFloat(4)
                         val by = if (c.isNull(5)) 0f else c.getFloat(5)
@@ -236,8 +287,8 @@ object RideAnalyzer {
 
     // --- JSON cache (sidecar file, version-gated)
 
-    // v3: Euler pitch kinematics (phantom nose-up in leaned turns, ADR 0007) — recompute
-    private const val CACHE_VERSION = 3
+    // v4: bike-relative pitch + elevation trace (ADR 0008) — recompute old caches
+    private const val CACHE_VERSION = 4
 
     private fun toJson(a: Analysis): JSONObject = JSONObject().apply {
         put("version", CACHE_VERSION)
@@ -250,6 +301,7 @@ object RideAnalyzer {
         a.lean?.let { put("lean", trace(it)) }
         a.accel?.let { put("accel", trace(it)) }
         a.pitch?.let { put("pitch", trace(it)) }
+        a.elevation?.let { put("elevation", trace(it)) }
     }
 
     private fun trace(t: Trace): JSONObject = JSONObject().apply {
@@ -278,6 +330,7 @@ object RideAnalyzer {
             lean = trace("lean"),
             accel = trace("accel"),
             pitch = trace("pitch"),
+            elevation = trace("elevation"),
         )
     }
 }

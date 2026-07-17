@@ -14,16 +14,22 @@ enum class Dimension(
     /** Horizontal gridline spacing in the trace view (0.3.1 review: e.g. every 5° lean). */
     val gridStep: Float,
     /**
-     * Minimum autoscale half-span (max for edge-origin) in the trace view — the y-scale
-     * never shrinks below this, so ordinary wander on a straight doesn't fill the screen
-     * (0.3.3 review: ±2° of real steering wander on a ±5 scale read as "twitchy").
+     * Minimum autoscale half-span (max for edge-origin, minimum total span for
+     * free-range) in the trace view — the y-scale never shrinks below this, so ordinary
+     * wander on a straight doesn't fill the screen (0.3.3 review: ±2° of real steering
+     * wander on a ±5 scale read as "twitchy").
      */
     val calmFloor: Float,
+    /** Selectable as a live bar slot; post-ride-only dimensions never enter the picker. */
+    val live: Boolean = true,
+    /** Trace y-range follows the visible window's min..max instead of an origin. */
+    val freeRange: Boolean = false,
 ) {
     LEAN("LEAN", "°", 45f, true, 5f, 15f),
     ACCEL("ACCEL / BRAKE", "m/s²", 10f, true, 2f, 3f),
     PITCH("PITCH", "°", 20f, true, 5f, 10f),
     SPEED("SPEED", "km/h", 120f, false, 20f, 60f),
+    ELEVATION("ELEVATION", "m", 200f, false, 10f, 40f, live = false, freeRange = true),
     ;
 
     companion object {
@@ -62,5 +68,6 @@ data class LiveMetrics(
         Dimension.LEAN -> lean
         Dimension.ACCEL -> accel
         Dimension.PITCH -> pitch
+        Dimension.ELEVATION -> LiveDim() // post-ride only, never a live slot
     }
 }

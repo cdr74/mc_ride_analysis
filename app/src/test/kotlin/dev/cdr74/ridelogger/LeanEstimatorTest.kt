@@ -68,4 +68,61 @@ class LeanEstimatorTest {
             maxAbsPitchAfterSettle < 3.0,
         )
     }
+
+    /**
+     * Pitch is bike-relative-to-road (ADR 0008): on a steady climb the road grade —
+     * estimated from baro climb rate ÷ GPS speed — is subtracted, so displayed pitch
+     * settles near 0. Without a barometer the grade stays 0 and the same climb reads
+     * as the absolute grade angle (graceful fallback).
+     */
+    @Test
+    fun steadyClimbReadsAsZeroPitchWithBaro() {
+        val gradeDeg = 3.0
+        val withBaro = settledClimbPitch(gradeDeg, feedBaro = true)
+        val withoutBaro = settledClimbPitch(gradeDeg, feedBaro = false)
+        assertTrue(
+            "climb with baro should read ~0° pitch, got %.2f°".format(withBaro),
+            abs(withBaro) < 1.0,
+        )
+        assertTrue(
+            "climb without baro should read the grade (~%.1f°), got %.2f°".format(gradeDeg, withoutBaro),
+            abs(withoutBaro - gradeDeg) < 0.5,
+        )
+    }
+
+    /** Steady straight climb at constant grade, v = 15 m/s; returns the settled pitch. */
+    private fun settledClimbPitch(gradeDeg: Double, feedBaro: Boolean): Double {
+        val g = 9.80665
+        val v = 15.0
+        val grade = Math.toRadians(gradeDeg)
+        val fx = (g * sin(grade)).toFloat() // nose-up gravity component on the climb
+        val fz = (g * cos(grade)).toFloat()
+        val climbRate = v * sin(grade) // m/s
+
+        var pitch = Double.NaN
+        val estimator = LeanEstimator(onOutput = { it.pitchDeg?.let { p -> pitch = p.toDouble() } })
+        estimator.setCalibration(floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f))
+
+        val stepNs = 2_500_000L // 400 Hz IMU
+        var tNs = 0L
+        var nextGpsNs = 0L
+        var nextBaroNs = 0L
+        while (tNs < 120_000_000_000L) {
+            if (tNs >= nextGpsNs) {
+                estimator.onGpsFix(tNs, v.toFloat())
+                nextGpsNs += 1_000_000_000L
+            }
+            if (feedBaro && tNs >= nextBaroNs) {
+                val h = climbRate * tNs / 1e9
+                val hPa = 1013.25 * Math.pow(1.0 - h / 44330.0, 1.0 / 0.1903)
+                estimator.onBaro(tNs, hPa.toFloat())
+                nextBaroNs += 80_000_000L // 12.5 Hz
+            }
+            estimator.onAccel(tNs, fx, 0f, fz)
+            estimator.onGyro(tNs, 0f, 0f, 0f)
+            tNs += stepNs
+        }
+        assertTrue("estimator never produced pitch", !pitch.isNaN())
+        return pitch
+    }
 }

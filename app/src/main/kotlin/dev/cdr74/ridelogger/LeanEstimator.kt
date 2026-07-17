@@ -22,7 +22,10 @@ import kotlin.math.sqrt
  *     accel: longitudinal specific force, LP 1.5 Hz for a flicker-free bar
  *     pitch: Euler pitch-rate integration (θ̇ = -wy·cosφ + wz·sinφ, using the current
  *            roll — raw -wy alone reads leaned turns as phantom nose-up, ADR 0007)
- *            + slow correction (τ = 5 s) toward gravity pitch — wheelie band still
+ *            + slow correction (τ = 5 s) toward gravity pitch. The DISPLAYED pitch is
+ *            bike-relative-to-road: θ minus the road grade estimated from the
+ *            barometer climb rate ÷ GPS speed (ADR 0008); without a barometer the
+ *            grade stays 0 and pitch falls back to absolute. Wheelie band still
  *            unvalidated until real wheelie data exists
  *
  * Threading: onAccel/onGyro are called on the sensor thread (no allocation, plain
@@ -123,6 +126,37 @@ class LeanEstimator(
         }
         prevFixSpeed = speedMps
         prevFixTNs = tNs
+    }
+
+    // --- road grade from the barometer (bike-only pitch, ADR 0008). Sensor thread
+    // only: baro callbacks arrive on the same HandlerThread as the 100 Hz steps.
+    private var baroPrevTNs = 0L
+    private var altLp1 = Double.NaN // two cascaded one-pole LPs, τ = 4 s
+    private var altLp2 = Double.NaN
+    private var altPrev = Double.NaN
+    private var climbRate = 0.0 // m/s, one-pole τ = 2 s
+    private var grade = 0.0 // rad, one-pole τ = 2 s while moving; decays to θ stopped
+
+    fun onBaro(tNs: Long, hPa: Float) {
+        val alt = 44330.0 * (1.0 - Math.pow(hPa / 1013.25, 0.1903)) // ISA, relative use
+        var dt = (tNs - baroPrevTNs) / 1e9
+        baroPrevTNs = tNs
+        if (dt !in 0.005..2.0) dt = 0.08
+        if (altLp1.isNaN()) {
+            altLp1 = alt
+            altLp2 = alt
+        }
+        altLp1 += dt / (TAU_ALT_S + dt) * (alt - altLp1)
+        altLp2 += dt / (TAU_ALT_S + dt) * (altLp1 - altLp2)
+        if (!altPrev.isNaN()) {
+            climbRate += dt / (TAU_CLIMB_S + dt) * ((altLp2 - altPrev) / dt - climbRate)
+            val v = gpsSpeedMps.toDouble()
+            if (v > GRADE_MIN_SPEED_MPS) {
+                val g = atan2(climbRate, v).coerceIn(-GRADE_MAX_RAD, GRADE_MAX_RAD)
+                grade += dt / (TAU_CLIMB_S + dt) * (g - grade)
+            }
+        }
+        altPrev = altLp2
     }
 
     // --- input-rate estimation, then anti-alias filters designed for that rate
@@ -229,6 +263,13 @@ class LeanEstimator(
         theta += (-wy * cos(phi) + wz * sin(phi)) * dt
         theta += dt / TAU_PITCH_S * (gravPitch - theta)
 
+        // stopped: a held road grade goes stale (you may have stopped on a different
+        // slope) — decay it toward the measured pitch so the display settles to 0,
+        // mirroring the lean channel's correct-toward-gravity-when-slow philosophy
+        if (v < GRADE_MIN_SPEED_MPS) {
+            grade += dt / TAU_GRADE_STOP_S * (theta - grade)
+        }
+
         // longitudinal specific force (raw unit, m/s²), smoothed for a flicker-free bar
         val accDisp = accLp!!.filter(fx)
 
@@ -239,7 +280,8 @@ class LeanEstimator(
                     tNs = tNs,
                     leanDeg = if (v > LEAN_MIN_SPEED_MPS) Math.toDegrees(phi).toFloat() else null,
                     accelMs2 = accDisp.toFloat(),
-                    pitchDeg = Math.toDegrees(theta).toFloat(),
+                    // bike-relative pitch: the road grade is subtracted (ADR 0008)
+                    pitchDeg = Math.toDegrees(theta - grade).toFloat(),
                 ),
             )
         }
@@ -264,6 +306,11 @@ class LeanEstimator(
         private const val STEP_NS = 10_000_000L
         private const val TAU_ROLL_S = 2.0
         private const val TAU_PITCH_S = 5.0
+        private const val TAU_ALT_S = 4.0 // baro altitude smoothing (×2 cascaded)
+        private const val TAU_CLIMB_S = 2.0 // climb-rate and grade smoothing
+        private const val TAU_GRADE_STOP_S = 10.0 // stale-grade decay at standstill
+        private const val GRADE_MIN_SPEED_MPS = 3.0 // grade undefined below this
+        private const val GRADE_MAX_RAD = 0.21 // ±12° — steeper than any paved road
         private const val RATE_MEASURE_SAMPLES = 200
         private const val PUBLISH_EVERY_STEPS = 10 // ~10 Hz UI updates
     }

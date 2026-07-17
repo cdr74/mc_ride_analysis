@@ -45,7 +45,7 @@ later one. If a push is urgent, the docs are part of the urgency.
 
 **Project phase (since 2026-07-12):** MVP done (M1–M4), offline fusion validated (M5),
 and **M6 — the ride-display version — is implemented, released, and field-reviewed**
-(v0.3.4; ADR 0004/0005; UI spec `docs/ui-mockup.md`, followed exactly — any UI change
+(v0.4.0; ADR 0004/0005; UI spec `docs/ui-mockup.md`, followed exactly — any UI change
 goes through the mockup first). Field review 2026-07-17 (two commute rides): lean and
 speed confirmed; pitch turn-coupling fixed via Euler kinematics (ADR 0007). Calibration
 is automatic (`analysis/calibrate.py` is the reference; `AutoCalibrator.kt` mirrors its
@@ -53,8 +53,9 @@ thresholds — keep them in sync). The on-device lean/accel estimator is a port 
 `analysis/fusion/compare_ride.py` (fused_causal); the port is guarded by
 `LeanEstimatorPortTest` against a committed real-ride fixture — any estimator change
 must keep that test green and re-derive the fixture when the reference changes. The
-pitch channel has no offline reference; it is defined by `LeanEstimator.kt` + ADR 0007
-and guarded by the synthetic `LeanEstimatorTest`. Outstanding: pitch wheelie-band
+pitch channel has no offline reference; it is defined by `LeanEstimator.kt` +
+ADR 0007/0008 (bike-relative-to-road since 0.4.0, baro-derived grade subtracted) and
+guarded by the synthetic `LeanEstimatorTest`. Outstanding: pitch wheelie-band
 validation (needs supermoto wheelie data; iOS logger for it is parked).
 
 ## Non-negotiable data-integrity rules

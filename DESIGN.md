@@ -264,8 +264,10 @@ implemented exactly; any UI change goes through the mockup before code. In brief
   share/save/delete).
 - **Live display:** the two chosen dimensions as huge numerals + fill bars with session
   high-watermark ticks; subtle color shift near the session max; full-width STOP.
-  Lean blank below 18 km/h (§11). Bars ignore touches while moving.
-- **Post-ride:** opens automatically after STOP — all-dimension summary, tap-through to
+  Lean blank below 18 km/h (§11). Pitch is bike-relative-to-road — the baro-derived
+  road grade is subtracted (ADR 0008). Bars ignore touches while moving.
+- **Post-ride:** opens automatically after STOP — all-dimension summary (plus an
+  ELEVATION row: baro altitude profile, post-ride only, ADR 0008), tap-through to
   pinch-zoomable traces with tap readout, an adaptive time axis + visible-span label,
   an extremes jump list, and a per-dimension minimum y-span (calm autoscale floor,
   0.3.4) so straight-line wander is not blown up to full screen height.

@@ -264,6 +264,27 @@ verified correct (the bike's speedometer over-reads — normal).
   sub-1-Hz content — display low-passes at 1–2 Hz barely reduce it (median 1-s p-p
   1.69° → 1.73° at 1 Hz on the commute rides) while adding 100–300 ms of lag.
 
+## Field-review refinements (0.3.4 → 0.4.0, pitch semantics + elevation — Chris, 2026-07-17)
+
+Decided after the "trying to understand the pitch" review (the absolute pitch trace is
+dominated by road grade, which reads as noise unless you know the route's slopes):
+
+- **PITCH is now bike-relative-to-road** — live bar AND post-ride trace (ADR 0008).
+  The road grade (barometer climb rate ÷ GPS speed, causal chain in `LeanEstimator`)
+  is subtracted, so the channel shows only dive, squat, and wheelies; baseline ≈ 0 on
+  any road. At standstill a stale grade decays away (τ = 10 s) so the bar settles to 0
+  at lights. Devices without a barometer fall back to absolute pitch.
+- **New post-ride dimension: ELEVATION** (m, relative to ride start) — the smoothed
+  barometric altitude profile as a fifth summary row + zoomable trace. Post-ride
+  ONLY: it never appears in the live picker (the live chips still cycle
+  lean → accel → pitch → speed → off). Free y-range (window min..max, ≥ 40 m span),
+  gridlines every 10 m; the summary row shows the climb range ("126 m climb range")
+  and no watermark bar (range bars are for origin-based dimensions). Hidden entirely
+  when the ride has no baro data.
+- Validated on both 2026-07-17 commute rides before implementation: bike-only pitch
+  baseline 0.1–0.8° mean (was grade-dominated), stale-grade artifact at long stops
+  eliminated by the standstill decay.
+
 ## Decision log & remaining questions
 
 | # | Topic | Status |

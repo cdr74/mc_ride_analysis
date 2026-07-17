@@ -79,9 +79,14 @@ unit), low-passed below the 22–105 Hz engine-vibration band (measured: < 3 % o
 vibration power falls inside the < 10 Hz dynamics band on the damped mount).
 
 **Pitch / wheelie** — gravity/gyro pitch in the bike frame, integrated with Euler
-kinematics so leaned turns don't read as phantom nose-up (ADR 0007). Fork dive and squat
+kinematics so leaned turns don't read as phantom nose-up (ADR 0007), and displayed
+**relative to the road**: the grade estimated from the barometer is subtracted, so the
+channel shows dive/squat/wheelies, not hills (ADR 0008). Fork dive and squat
 contaminate the small-pitch range (~2–4°), so only the wheelie band (10–40°) is treated
 as signal. Awaits real wheelie data (phase 4).
+
+**Elevation** — the ride's barometric altitude profile (post-ride graph only), the
+"road" half of the pitch split.
 
 **Speed** — GPS, with per-fix accuracy logged.
 
