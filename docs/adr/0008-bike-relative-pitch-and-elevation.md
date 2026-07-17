@@ -57,6 +57,9 @@ a synthetic constant 3° climb must read < 1° with baro and ≈ 3° without (fa
   empirically the baro-derived grade tracked pitch through accelerations to well
   under 2° on both rides, so no correction is needed at street speeds.
 - The analysis sidecar cache bumps to v4 (old rides recompute on next open, gaining
-  the elevation trace and bike-only pitch retroactively).
+  the elevation trace and bike-only pitch retroactively). *Amended 0.4.1:* the 0.4.0
+  build wrote v4 caches with an always-empty elevation trace (Long.MIN_VALUE sentinel
+  overflow in the decimation), so the cache is v5 since 0.4.1 and the analyzer path is
+  now covered by `RideAnalyzerTest`.
 - Raw logging is untouched — the ride file keeps absolute raw sensor data; this is
   display-chain only.

@@ -10,6 +10,8 @@ Status: Draft 1.1 · Owner: Chris · Last updated: 2026-07-17
 > (GPS speed cross-checked against position-derived speed to ~1 %; the bike's
 > speedometer over-reads ~6–8 %, which is normal); pitch read leaned turns as
 > phantom nose-up — fixed in v0.3.3 by Euler pitch kinematics (ADR 0007).
+> Since v0.4.x (ADR 0008): displayed pitch is bike-relative-to-road (baro-derived
+> grade subtracted), and the road lives in a post-ride-only ELEVATION graph.
 
 ---
 

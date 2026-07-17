@@ -45,7 +45,7 @@ later one. If a push is urgent, the docs are part of the urgency.
 
 **Project phase (since 2026-07-12):** MVP done (M1–M4), offline fusion validated (M5),
 and **M6 — the ride-display version — is implemented, released, and field-reviewed**
-(v0.4.0; ADR 0004/0005; UI spec `docs/ui-mockup.md`, followed exactly — any UI change
+(v0.4.1; ADR 0004/0005; UI spec `docs/ui-mockup.md`, followed exactly — any UI change
 goes through the mockup first). Field review 2026-07-17 (two commute rides): lean and
 speed confirmed; pitch turn-coupling fixed via Euler kinematics (ADR 0007). Calibration
 is automatic (`analysis/calibrate.py` is the reference; `AutoCalibrator.kt` mirrors its
@@ -134,7 +134,10 @@ and `StateFlow<LiveMetrics>` from the service. No other coupling.
 ## Testing policy
 
 - **Unit-test:** ring buffer, batch writer (drop counting, transaction boundaries),
-  schema creation, exporter file naming. Use in-memory SQLite.
+  schema creation, exporter file naming. Use in-memory SQLite. The estimator has
+  synthetic physics tests + the port fixture (`LeanEstimatorTest`/`PortTest`); the
+  post-ride analyzer runs end-to-end on a synthetic ride file (`RideAnalyzerTest`,
+  Robolectric) — added 0.4.1 after an untested analyzer path shipped broken.
 - **Do not attempt to unit-test** `SensorManager`/GPS integration — that is validated by the
   field checklist in DESIGN.md §9 and by the Python-side `validate_ride.py` script.
 - Every schema change requires bumping `schema_version` in `meta` and updating
