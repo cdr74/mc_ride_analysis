@@ -247,6 +247,23 @@ No UI change. Estimator-only release: pitch integrates the Euler pitch rate
 (ADR 0007); cached post-ride analyses recompute automatically on next open. Speed was
 verified correct (the bike's speedometer over-reads — normal).
 
+## Field-review refinements (0.3.3 → 0.3.4, trace readability — commute-ride review)
+
+- **Time axis (closes a spec gap — the S3b sketch always had time labels, the
+  implementation never drew them):** vertical time gridlines at an adaptive natural
+  step (1 s … 30 min, chosen so ticks stay ≳ 72 px apart), time labels along the
+  bottom (m:ss, h:mm:ss once a ride exceeds an hour), and the visible span appended
+  to the hint line: "pinch = zoom · drag = pan · tap = value · 2 min 30 s shown".
+- **Calm autoscale floor:** the y-scale still autosizes to the visible window, but the
+  minimum half-span is per-dimension (lean ±15°, pitch ±10°, accel ±3 m/s², speed
+  0–60 km/h) instead of the old global ±5. Zoomed into a straight, the ±1–2° of real
+  sub-1-Hz steering wander no longer fills the screen (the "twitchy" impression from
+  the 2026-07-17 field review); windows containing real cornering expand exactly as
+  before.
+- **No added smoothing** (considered, rejected with data): the wander is genuine
+  sub-1-Hz content — display low-passes at 1–2 Hz barely reduce it (median 1-s p-p
+  1.69° → 1.73° at 1 Hz on the commute rides) while adding 100–300 ms of lag.
+
 ## Decision log & remaining questions
 
 | # | Topic | Status |

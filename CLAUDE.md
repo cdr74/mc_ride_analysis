@@ -45,7 +45,7 @@ later one. If a push is urgent, the docs are part of the urgency.
 
 **Project phase (since 2026-07-12):** MVP done (M1–M4), offline fusion validated (M5),
 and **M6 — the ride-display version — is implemented, released, and field-reviewed**
-(v0.3.3; ADR 0004/0005; UI spec `docs/ui-mockup.md`, followed exactly — any UI change
+(v0.3.4; ADR 0004/0005; UI spec `docs/ui-mockup.md`, followed exactly — any UI change
 goes through the mockup first). Field review 2026-07-17 (two commute rides): lean and
 speed confirmed; pitch turn-coupling fixed via Euler kinematics (ADR 0007). Calibration
 is automatic (`analysis/calibrate.py` is the reference; `AutoCalibrator.kt` mirrors its

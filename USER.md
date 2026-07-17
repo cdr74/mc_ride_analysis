@@ -127,8 +127,11 @@ give "forward" — `docs/adr/0004-automatic-calibration.md`). What that means in
 Tap **STOP** (bottom of the live display). The app closes the ride file and opens the
 **post-ride summary** automatically: distance, duration, and every dimension with its
 session extremes. Tap a dimension for the full trace over time — pinch to zoom, drag to
-pan, tap for the value at that moment; the EXTREMES list jumps straight to the deepest
-lean or hardest braking. The first open of a ride replays all of its raw data once and
+pan, tap for the value at that moment; time gridlines label the x-axis and the hint
+line shows how much of the ride is on screen ("… 2 min 30 s shown"); the EXTREMES list
+jumps straight to the deepest lean or hardest braking. The y-scale fits the visible
+window but never zooms tighter than a per-dimension floor (lean ±15°), so the small
+steering wander every bike has on a straight doesn't get blown up to look dramatic. The first open of a ride replays all of its raw data once and
 shows "computing…" with a progress percentage — expect ~10–30 s for a long ride — then
 the result is cached and every later open is instant. Rides remain in the **Rides** list.
 

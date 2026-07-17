@@ -155,6 +155,25 @@ private fun formatDur(s: Float): String {
     return "%d:%02d:%02d".format(sec / 3600, sec / 60 % 60, sec % 60)
 }
 
+/** Visible-window span for the hint line, e.g. "2 min 30 s". */
+private fun formatSpan(s: Float): String {
+    val sec = Math.round(s)
+    return when {
+        sec >= 3600 -> "%d h %d min".format(sec / 3600, sec % 3600 / 60)
+        sec >= 60 -> if (sec % 60 == 0) {
+            "%d min".format(sec / 60)
+        } else {
+            "%d min %d s".format(sec / 60, sec % 60)
+        }
+        else -> "$sec s"
+    }
+}
+
+/** Natural time-gridline steps (s): ticks pick the first that keeps ≳72 px spacing. */
+private val TIME_TICK_STEPS_S = floatArrayOf(
+    1f, 2f, 5f, 10f, 15f, 30f, 60f, 120f, 300f, 600f, 900f, 1800f,
+)
+
 private fun validStats(t: RideAnalyzer.Trace): Pair<Float, Float> {
     var mn = 0f
     var mx = 0f
@@ -235,7 +254,7 @@ private fun DimensionDetail(
             if (idx != null && !trace.v[idx].isNaN()) {
                 "%s  %.1f %s  @ %s".format(dim.label, trace.v[idx], dim.unit, formatDur(trace.t[idx]))
             } else {
-                "pinch = zoom · drag = pan · tap = value"
+                "pinch = zoom · drag = pan · tap = value · ${formatSpan(win.endInclusive - win.start)} shown"
             },
             color = Ui.Muted,
         )
@@ -321,12 +340,14 @@ private fun TraceCanvas(
         val h = size.height
         val span = (win.endInclusive - win.start).coerceAtLeast(1e-3f)
 
-        // y-range from the visible window
+        // y-range from the visible window, never tighter than the dimension's calm
+        // floor — ±2° of real steering wander on an autoscaled ±5 read as "twitchy
+        // flopping" in the 0.3.3 field review
         var lo = 0
         while (lo < trace.t.size && trace.t[lo] < win.start) lo++
         var hi = lo
-        var yMax = 5f
-        var yMin = if (dim.centerOrigin) -5f else 0f
+        var yMax = dim.calmFloor
+        var yMin = if (dim.centerOrigin) -dim.calmFloor else 0f
         while (hi < trace.t.size && trace.t[hi] <= win.endInclusive) {
             val v = trace.v[hi]
             if (!v.isNaN()) {
@@ -367,6 +388,33 @@ private fun TraceCanvas(
         // pronounced zero line for center-origin dimensions
         if (dim.centerOrigin) {
             drawLine(Ui.Ink, Offset(0f, py(0f)), Offset(w, py(0f)), strokeWidth = 2f)
+        }
+
+        // vertical time gridlines at an adaptive natural step, labels along the bottom
+        // (the S3b sketch always had a time axis — implemented in 0.3.4)
+        val minTickPx = 72.dp.toPx()
+        val tickStep = TIME_TICK_STEPS_S.firstOrNull { it / span * w >= minTickPx }
+            ?: TIME_TICK_STEPS_S.last()
+        val tickPaint = android.graphics.Paint().apply {
+            isAntiAlias = true
+            textSize = 11.sp.toPx()
+            color = android.graphics.Color.rgb(0x64, 0x74, 0x8B) // Ui.Muted
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+        var gt = kotlin.math.ceil(win.start / tickStep) * tickStep
+        while (gt <= win.endInclusive) {
+            val x = px(gt)
+            drawLine(Ui.Track, Offset(x, 0f), Offset(x, h - 4f))
+            if (x > 24f && x < w - 24f) {
+                val sec = gt.toInt()
+                val label = if (tEnd >= 3600f) {
+                    "%d:%02d:%02d".format(sec / 3600, sec / 60 % 60, sec % 60)
+                } else {
+                    "%d:%02d".format(sec / 60, sec % 60)
+                }
+                drawContext.canvas.nativeCanvas.drawText(label, x, h - 10f, tickPaint)
+            }
+            gt += tickStep
         }
 
         // trace polyline with NaN gaps, stride-decimated to ~2 points per pixel

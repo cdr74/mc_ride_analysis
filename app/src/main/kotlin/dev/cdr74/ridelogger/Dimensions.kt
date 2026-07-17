@@ -13,11 +13,17 @@ enum class Dimension(
     val centerOrigin: Boolean,
     /** Horizontal gridline spacing in the trace view (0.3.1 review: e.g. every 5° lean). */
     val gridStep: Float,
+    /**
+     * Minimum autoscale half-span (max for edge-origin) in the trace view — the y-scale
+     * never shrinks below this, so ordinary wander on a straight doesn't fill the screen
+     * (0.3.3 review: ±2° of real steering wander on a ±5 scale read as "twitchy").
+     */
+    val calmFloor: Float,
 ) {
-    LEAN("LEAN", "°", 45f, true, 5f),
-    ACCEL("ACCEL / BRAKE", "m/s²", 10f, true, 2f),
-    PITCH("PITCH", "°", 20f, true, 5f),
-    SPEED("SPEED", "km/h", 120f, false, 20f),
+    LEAN("LEAN", "°", 45f, true, 5f, 15f),
+    ACCEL("ACCEL / BRAKE", "m/s²", 10f, true, 2f, 3f),
+    PITCH("PITCH", "°", 20f, true, 5f, 10f),
+    SPEED("SPEED", "km/h", 120f, false, 20f, 60f),
     ;
 
     companion object {
