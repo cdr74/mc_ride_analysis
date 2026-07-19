@@ -36,17 +36,20 @@ class RideAnalyzerTest {
         db.beginTransaction()
         try {
             // stationary accel/gyro at 50 Hz (replay needs stream 0 for its bounds)
+            // Schema v2: v0-v2 stored as float32 bit patterns (INTEGER column)
+            val zero = 0f.toBits()
+            val g = 9.81f.toBits()
             var t = t0
             while (t < t0 + durationS * 1_000_000_000L) {
-                db.execSQL("INSERT INTO imu (t_ns, stream, v0, v1, v2) VALUES ($t, 0, 0.0, 0.0, 9.81)")
-                db.execSQL("INSERT INTO imu (t_ns, stream, v0, v1, v2) VALUES ($t, 1, 0.0, 0.0, 0.0)")
+                db.execSQL("INSERT INTO imu (t_ns, stream, v0, v1, v2) VALUES ($t, 0, $zero, $zero, $g)")
+                db.execSQL("INSERT INTO imu (t_ns, stream, v0, v1, v2) VALUES ($t, 1, $zero, $zero, $zero)")
                 t += 20_000_000L
             }
             // baro at 12.5 Hz: pressure falling with a steady climb
             t = t0
             while (t < t0 + durationS * 1_000_000_000L) {
                 val h = climbRate * (t - t0) / 1e9
-                val hPa = 1013.25 * (1.0 - h / 44330.0).pow(1.0 / 0.1903)
+                val hPa = (1013.25 * (1.0 - h / 44330.0).pow(1.0 / 0.1903)).toFloat().toBits()
                 db.execSQL("INSERT INTO imu (t_ns, stream, v0) VALUES ($t, 4, $hPa)")
                 t += 80_000_000L
             }

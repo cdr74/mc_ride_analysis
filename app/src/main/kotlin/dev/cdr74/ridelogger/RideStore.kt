@@ -183,23 +183,23 @@ class RideStore private constructor(
         st.clearBindings()
         st.bindLong(1, s.tNs)
         st.bindLong(2, s.stream.toLong())
-        st.bindDouble(3, s.values[0].toDouble())
+        st.bindLong(3, s.values[0].toBits().toLong())
         when (s.stream) {
             Config.STREAM_BARO -> Unit // v1,v2,b* stay NULL
             Config.STREAM_ROTVEC -> {
                 // v0-v2 = quaternion x,y,z; b0 = w (scalar); b1 = est. heading accuracy (§5.2)
-                if (s.n > 1) st.bindDouble(4, s.values[1].toDouble())
-                if (s.n > 2) st.bindDouble(5, s.values[2].toDouble())
-                if (s.n > 3) st.bindDouble(6, s.values[3].toDouble())
-                if (s.n > 4) st.bindDouble(7, s.values[4].toDouble())
+                if (s.n > 1) st.bindLong(4, s.values[1].toBits().toLong())
+                if (s.n > 2) st.bindLong(5, s.values[2].toBits().toLong())
+                if (s.n > 3) st.bindLong(6, s.values[3].toBits().toLong())
+                if (s.n > 4) st.bindLong(7, s.values[4].toBits().toLong())
             }
             else -> {
-                if (s.n > 1) st.bindDouble(4, s.values[1].toDouble())
-                if (s.n > 2) st.bindDouble(5, s.values[2].toDouble())
+                if (s.n > 1) st.bindLong(4, s.values[1].toBits().toLong())
+                if (s.n > 2) st.bindLong(5, s.values[2].toBits().toLong())
                 // *_UNCALIBRATED delivers 6 values; bias fields stay NULL for calibrated fallback
-                if (s.n > 3) st.bindDouble(6, s.values[3].toDouble())
-                if (s.n > 4) st.bindDouble(7, s.values[4].toDouble())
-                if (s.n > 5) st.bindDouble(8, s.values[5].toDouble())
+                if (s.n > 3) st.bindLong(6, s.values[3].toBits().toLong())
+                if (s.n > 4) st.bindLong(7, s.values[4].toBits().toLong())
+                if (s.n > 5) st.bindLong(8, s.values[5].toBits().toLong())
             }
         }
         st.bindLong(9, s.acc.toLong())
@@ -256,15 +256,18 @@ class RideStore private constructor(
             db.execSQL("PRAGMA synchronous=NORMAL")
         }
 
-        // Schema version 1 — mirrored in analysis/schema.md; bump schema_version on any change.
+        // Schema version 2 — mirrored in analysis/schema.md; bump schema_version on any change.
+        // v2: imu v0-v2/b0-b2 stored as INTEGER (float32 bit patterns via Float.toBits()) rather
+        //     than REAL (float64).  Read back with Float.fromBits(cursor.getInt(col)).
+        //     Sensor values are already float32 from SensorEvent; widening to float64 was waste.
         fun createSchema(db: SQLiteDatabase) {
             db.execSQL("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
             db.execSQL(
                 """CREATE TABLE imu (
                   t_ns   INTEGER NOT NULL,
                   stream INTEGER NOT NULL,
-                  v0 REAL NOT NULL, v1 REAL, v2 REAL,
-                  b0 REAL, b1 REAL, b2 REAL,
+                  v0 INTEGER NOT NULL, v1 INTEGER, v2 INTEGER,
+                  b0 INTEGER, b1 INTEGER, b2 INTEGER,
                   acc INTEGER
                 )""",
             )

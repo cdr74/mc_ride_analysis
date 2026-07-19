@@ -60,8 +60,8 @@ def check_meta(db: sqlite3.Connection) -> dict[str, str]:
             fail(f"{key} missing — ride was crash-terminated or not closed cleanly")
         else:
             fail(f"{key} missing")
-    if meta.get("schema_version") not in (None, "1"):
-        warn(f"schema_version {meta['schema_version']} != 1 — validator may be stale")
+    if meta.get("schema_version") not in (None, "1", "2"):
+        warn(f"schema_version {meta['schema_version']} unrecognised — validator may be stale")
     for key in ("clock_anchor", "clock_anchor_stop"):
         if key in meta:
             try:

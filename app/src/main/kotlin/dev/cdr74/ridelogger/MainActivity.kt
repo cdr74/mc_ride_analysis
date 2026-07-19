@@ -11,8 +11,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,17 +22,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RectangleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -57,13 +63,28 @@ import java.io.File
  * Ride-display version UI (docs/ui-mockup.md, ADR 0005): three-state startup
  * (Initializing… → START / error screen), live-dimension slot picker, screen-mode
  * choice, the live bar display while recording, and the ride list.
+ * v0.5.0: dark/light theme system (RideLoggerTheme), per-dimension identity colors,
+ * SegmentBar LED-strip bars.
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
-                MainScreen()
+            val uiPrefs = remember { UiPrefs(this) }
+            var themeOverride by remember { mutableStateOf(uiPrefs.themeOverride) }
+            RideLoggerTheme(override = themeOverride) {
+                MainScreen(
+                    themeOverride = themeOverride,
+                    onToggleTheme = {
+                        val next = when (themeOverride) {
+                            ThemeOverride.SYSTEM -> ThemeOverride.DARK
+                            ThemeOverride.DARK   -> ThemeOverride.LIGHT
+                            ThemeOverride.LIGHT  -> ThemeOverride.SYSTEM
+                        }
+                        themeOverride = next
+                        uiPrefs.themeOverride = next
+                    },
+                )
             }
         }
     }
@@ -92,11 +113,17 @@ private class UiPrefs(context: Context) {
             ScreenMode.LIVE
         }
         set(v) = prefs.edit().putString("screen_mode", v.name).apply()
+
+    var themeOverride: ThemeOverride
+        get() = ThemeOverride.entries.firstOrNull { it.name == prefs.getString("theme", ThemeOverride.SYSTEM.name) }
+            ?: ThemeOverride.SYSTEM
+        set(v) = prefs.edit().putString("theme", v.name).apply()
 }
 
 @Composable
-private fun MainScreen() {
+private fun MainScreen(themeOverride: ThemeOverride, onToggleTheme: () -> Unit) {
     val context = LocalContext.current
+    val colors = LocalRideColors.current
     val status by RideLoggerService.status.collectAsState()
 
     val uiPrefs = remember { UiPrefs(context) }
@@ -110,8 +137,6 @@ private fun MainScreen() {
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { preflight.start() }
 
-    // Preflight runs only while the app is idle in the foreground: paused on
-    // ON_PAUSE and while a ride is recording (the ride owns GPS + sensors then).
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, status.running) {
         val observer = LifecycleEventObserver { _, event ->
@@ -129,8 +154,6 @@ private fun MainScreen() {
         }
     }
 
-    // Post-ride navigation: opened by tapping a ride, and automatically after STOP
-    // (ui-mockup S3a). A ride in progress always wins the screen.
     var openRide by remember { mutableStateOf<File?>(null) }
     var wasRunning by remember { mutableStateOf(status.running) }
     LaunchedEffect(status.running) {
@@ -142,7 +165,6 @@ private fun MainScreen() {
 
     if (status.running) {
         val live by RideLoggerService.live.collectAsState()
-        // Rider chose a screen-on live display: keep it on for the whole ride.
         KeepScreenOn(enabled = screenMode == ScreenMode.LIVE)
         LiveDisplayScreen(
             slots = slots,
@@ -166,11 +188,25 @@ private fun MainScreen() {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(colors.background)
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Spacer(Modifier.height(16.dp))
+        // Theme toggle top-right
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onToggleTheme) {
+                Text(
+                    text = when (themeOverride) {
+                        ThemeOverride.SYSTEM -> "AUTO"
+                        ThemeOverride.DARK   -> "☾"
+                        ThemeOverride.LIGHT  -> "☀"
+                    },
+                    color = colors.textMuted,
+                    fontSize = 14.sp,
+                )
+            }
+        }
 
         StartCard(
             state = preflightState,
@@ -200,11 +236,11 @@ private fun MainScreen() {
         Text(
             "tap the chips to change what's shown while riding",
             style = MaterialTheme.typography.bodySmall,
-            color = Ui.Muted,
+            color = colors.textMuted,
         )
 
-        HorizontalDivider()
-        Text("Rides", style = MaterialTheme.typography.titleMedium)
+        HorizontalDivider(color = colors.divider)
+        Text("Rides", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
         var rideListVersion by remember { mutableIntStateOf(0) }
         val rides = remember(rideListVersion) {
             RideExporter.closedRides(context, null)
@@ -213,7 +249,7 @@ private fun MainScreen() {
             RideRow(file = file, onOpen = { openRide = file }, onChanged = { rideListVersion++ })
         }
         if (rides.isEmpty()) {
-            Text("No closed rides yet.", style = MaterialTheme.typography.bodyMedium)
+            Text("No closed rides yet.", style = MaterialTheme.typography.bodyMedium, color = colors.textMuted)
         }
         Spacer(Modifier.height(24.dp))
     }
@@ -255,8 +291,9 @@ private fun KeepScreenOn(enabled: Boolean) {
 /** Two live-display slots; tapping a chip cycles lean → accel → pitch → speed → off. */
 @Composable
 private fun SlotPicker(slots: List<Dimension?>, onChange: (List<Dimension?>) -> Unit) {
+    val colors = LocalRideColors.current
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("LIVE", style = MaterialTheme.typography.labelLarge)
+        Text("LIVE", style = MaterialTheme.typography.labelLarge, color = colors.textPrimary)
         slots.forEachIndexed { i, dim ->
             FilterChip(
                 selected = dim != null,
@@ -266,12 +303,21 @@ private fun SlotPicker(slots: List<Dimension?>, onChange: (List<Dimension?>) -> 
                         Dimension.ACCEL -> Dimension.PITCH
                         Dimension.PITCH -> Dimension.SPEED
                         Dimension.SPEED -> null
-                        Dimension.ELEVATION -> null // post-ride only, never a live slot
+                        Dimension.ELEVATION -> null
                         null -> Dimension.LEAN
                     }
                     onChange(slots.toMutableList().also { it[i] = next })
                 },
                 label = { Text(dim?.label ?: "OFF", fontSize = 14.sp) },
+                leadingIcon = dim?.let { d ->
+                    {
+                        Box(
+                            Modifier
+                                .size(8.dp)
+                                .background(d.color, CircleShape),
+                        )
+                    }
+                },
             )
         }
     }
@@ -279,8 +325,9 @@ private fun SlotPicker(slots: List<Dimension?>, onChange: (List<Dimension?>) -> 
 
 @Composable
 private fun ScreenModeRow(mode: ScreenMode, onChange: (ScreenMode) -> Unit) {
+    val colors = LocalRideColors.current
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("SCREEN", style = MaterialTheme.typography.labelLarge)
+        Text("SCREEN", style = MaterialTheme.typography.labelLarge, color = colors.textPrimary)
         FilterChip(
             selected = mode == ScreenMode.LIVE,
             onClick = { onChange(ScreenMode.LIVE) },
@@ -305,18 +352,24 @@ private fun StartCard(
     onStart: () -> Unit,
     onIssueAction: (Preflight.Action) -> Unit,
 ) {
+    val colors = LocalRideColors.current
     when (state) {
         is Preflight.State.Ready -> Button(
             onClick = onStart,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(96.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(containerColor = colors.startFill),
         ) {
-            Text("START", fontSize = 28.sp)
+            Text("START", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
 
-        is Preflight.State.Initializing -> Card(Modifier.fillMaxWidth()) {
+        is Preflight.State.Initializing -> Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = colors.surface,
+            shape = MaterialTheme.shapes.medium,
+        ) {
             Row(
                 Modifier.padding(20.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -324,16 +377,21 @@ private fun StartCard(
             ) {
                 CircularProgressIndicator(Modifier.width(28.dp).height(28.dp))
                 Column {
-                    Text("Initializing …", style = MaterialTheme.typography.titleLarge)
+                    Text("Initializing …", style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
                     Text(
                         "waiting for ${state.waitingFor.joinToString(" · ")}",
                         style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textMuted,
                     )
                 }
             }
         }
 
-        is Preflight.State.Blocked -> Card(Modifier.fillMaxWidth()) {
+        is Preflight.State.Blocked -> Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = colors.surface,
+            shape = MaterialTheme.shapes.medium,
+        ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     "Can't record yet",
@@ -342,8 +400,8 @@ private fun StartCard(
                 )
                 state.issues.forEach { issue ->
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(issue.title, style = MaterialTheme.typography.titleMedium)
-                        Text(issue.detail, style = MaterialTheme.typography.bodyMedium)
+                        Text(issue.title, style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
+                        Text(issue.detail, style = MaterialTheme.typography.bodyMedium, color = colors.textMuted)
                         if (issue.action != Preflight.Action.NONE) {
                             Button(onClick = { onIssueAction(issue.action) }) {
                                 Text(
@@ -366,6 +424,7 @@ private fun StartCard(
 @Composable
 private fun RideRow(file: File, onOpen: () -> Unit, onChanged: () -> Unit) {
     val context = LocalContext.current
+    val colors = LocalRideColors.current
     var confirmDelete by remember { mutableStateOf(false) }
 
     Row(
@@ -373,10 +432,12 @@ private fun RideRow(file: File, onOpen: () -> Unit, onChanged: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f).clickable { onOpen() }) {
-            Text(file.name, style = MaterialTheme.typography.bodySmall)
-            Text("%.1f MB".format(file.length() / 1e6), style = MaterialTheme.typography.bodySmall)
+            Text(file.name, style = MaterialTheme.typography.bodySmall, color = colors.textPrimary)
+            Text("%.1f MB".format(file.length() / 1e6), style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
         }
-        TextButton(onClick = { RideExporter.share(context, file) }) { Text("Share") }
+        TextButton(onClick = { RideExporter.share(context, file) }) {
+            Text("Share", color = colors.textMuted)
+        }
         TextButton(onClick = {
             val uri = RideExporter.exportToDownloads(context, file)
             Toast.makeText(
@@ -384,8 +445,8 @@ private fun RideRow(file: File, onOpen: () -> Unit, onChanged: () -> Unit) {
                 if (uri != null) "Saved to Downloads/RideLogger" else "Export failed",
                 Toast.LENGTH_SHORT,
             ).show()
-        }) { Text("Save") }
-        TextButton(onClick = { confirmDelete = true }) { Text("Delete") }
+        }) { Text("Save", color = colors.textMuted) }
+        TextButton(onClick = { confirmDelete = true }) { Text("Delete", color = colors.textMuted) }
     }
 
     if (confirmDelete) {

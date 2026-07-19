@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Speedometer arc: bottom-right to bottom-left, large CCW arc = top 270° of circle -->
+    <!-- Circle center (54,54), radius 36 -->
+    <!-- Start at 135° CW from top = bottom-right: (79.5, 79.5) -->
+    <!-- End   at 225° CW from top = bottom-left:  (28.5, 79.5) -->
+    <!-- large-arc=1, sweep=0 (CCW) gives the upper 270° arc -->
+    <path
+        android:pathData="M 79.5,79.5 A 36,36 0 1,0 28.5,79.5"
+        android:strokeColor="#FF4500"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"/>
+    <!-- Needle: center (54,54) to 35° CW from top on radius 30 = (71.2, 29.4) -->
+    <path
+        android:pathData="M 54,54 L 71.2,29.4"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.0"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"/>
+    <!-- Center dot -->
+    <path
+        android:pathData="M 51,54 A 3,3 0 1,0 57,54 A 3,3 0 1,0 51,54 Z"
+        android:fillColor="#FFFFFF"/>
+</vector>

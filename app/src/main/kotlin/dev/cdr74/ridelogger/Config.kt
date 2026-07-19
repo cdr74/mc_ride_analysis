@@ -2,7 +2,7 @@ package dev.cdr74.ridelogger
 
 /** All tunables in one place (design.md §8: no settings screen in MVP). */
 object Config {
-    const val SCHEMA_VERSION = 1
+    const val SCHEMA_VERSION = 2
 
     // Stream discriminators for the imu table (design.md §5.2).
     const val STREAM_ACCEL = 0

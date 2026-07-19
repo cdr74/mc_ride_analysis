@@ -1,9 +1,16 @@
 # Ride file schema — cross-repo contract
 
 Mirror of `DESIGN.md` §5.2. **Any schema change bumps `schema_version` in `meta` and updates
-this file.** Current `schema_version = 1`.
+this file.** Current `schema_version = 2`.
 
 One SQLite database per ride: `ride_<yyyyMMdd'T'HHmmss'Z'>_<8-hex>.db`, WAL mode, insert-only.
+
+### Schema changelog
+
+| version | change |
+|---|---|
+| 1 | initial schema |
+| 2 | `imu` v0–v2, b0–b2: `REAL` → `INTEGER`. Values are **float32 bit patterns** (`Float.toBits()` in Kotlin, `struct.unpack('<f', struct.pack('<i', v))` in Python). Read with `Float.fromBits(cursor.getInt())` / the Python helper. `NULL` encodes absent bias fields as before. Saves ~40% on the dominant table. GPS/GNSS tables unchanged (still REAL). |
 
 ## Tables
 
@@ -11,11 +18,14 @@ One SQLite database per ride: `ride_<yyyyMMdd'T'HHmmss'Z'>_<8-hex>.db`, WAL mode
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
 -- one row per IMU event; stream discriminates sensor
+-- v0-v2, b0-b2: float32 bit patterns stored as INTEGER (schema v2).
+--   Kotlin: Float.fromBits(cursor.getInt(col))
+--   Python: struct.unpack('<f', struct.pack('<i', int(v)))[0]  (None → nan)
 CREATE TABLE imu (
   t_ns   INTEGER NOT NULL,          -- SensorEvent.timestamp (elapsedRealtimeNanos, monotonic)
   stream INTEGER NOT NULL,          -- 0=accel 1=gyro 2=mag 3=rotvec 4=baro
-  v0 REAL NOT NULL, v1 REAL, v2 REAL,
-  b0 REAL, b1 REAL, b2 REAL,        -- bias fields of *_UNCALIBRATED; NULL otherwise
+  v0 INTEGER NOT NULL, v1 INTEGER, v2 INTEGER,
+  b0 INTEGER, b1 INTEGER, b2 INTEGER,  -- bias fields of *_UNCALIBRATED; NULL otherwise
   acc INTEGER                       -- SensorEvent.accuracy
 );
 CREATE INDEX idx_imu ON imu(stream, t_ns);

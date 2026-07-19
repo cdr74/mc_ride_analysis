@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Docs-in-sync reminder (CLAUDE.md rule). Install: git config core.hooksPath .githooks
+# Non-blocking — prints the checklist, lets you decide.
+
+echo ""
+echo "┌─ docs-in-sync check ───────────────────────────────────────────────┐"
+echo "│  Push contains code — have you synced these docs?                 │"
+echo "│                                                                    │"
+echo "│  README.md  DESIGN.md  USER.md  CLAUDE.md                         │"
+echo "│  analysis/schema.md  docs/ui-mockup.md  docs/adr/                 │"
+echo "└────────────────────────────────────────────────────────────────────┘"
+echo ""
+exit 0

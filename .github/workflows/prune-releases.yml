@@ -1,0 +1,33 @@
+name: Prune old releases
+
+# Runs after every new release is published; deletes all but the two most recent
+# releases (current + previous). The corresponding git tag is deleted too — old
+# APKs have no reinstall value once a newer version exists.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete all but the two most recent releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release list \
+            --repo "$GITHUB_REPOSITORY" \
+            --limit 100 \
+            --json tagName,createdAt \
+            --jq 'sort_by(.createdAt) | reverse | .[2:] | .[].tagName' \
+          | while read -r tag; do
+              echo "Deleting release and tag: $tag"
+              gh release delete "$tag" \
+                --repo "$GITHUB_REPOSITORY" \
+                --yes \
+                --cleanup-tag
+            done

@@ -87,14 +87,19 @@ The calibration and all offline analysis assume the mount from `DESIGN.md` §7:
 
 1. Mount the phone, start the bike, stand somewhere with open sky.
 2. On the home screen, pick what you want while riding:
-   - **LIVE** — up to two dimensions shown as big bars during the ride: **LEAN**,
-     **ACCEL/BRAKE**, **PITCH**, **SPEED** (tap a chip to cycle, or set it to OFF).
-   - **SCREEN** — *live display* (screen stays on, showing the bars) or
-     *off (background)* (screen off, app minimizes; review everything after the ride).
+   - **LIVE DISPLAY** — up to two dimensions shown as live bars during the ride:
+     **LEAN**, **ACCEL/BRAKE**, **PITCH**, **SPEED** (tap a chip to cycle).
+     Each chip shows a colored dot — orange for lean, blue for speed, green for
+     accel, teal for pitch — so you never need to read the label.
+   - **CAPTURE** — *live* (screen stays on, showing the bars) or
+     *background* (screen off, app minimizes; review everything after the ride).
 3. The app shows **"Initializing …"** while sensors spin up and GPS acquires — the
-   green **START** button appearing *is* the ready signal. If something is wrong
-   (permission, location off, sensor rate capped) you get an error card with a fix
-   button instead. Tap **START** and ride.
+   deep-green **START** button appearing *is* the ready signal. If something is
+   wrong (permission, location off, sensor rate capped) you get an error card with a
+   fix button instead. Tap **START** and ride.
+4. **Theme:** the app defaults to dark (follows system dark mode). Tap ☾/☀ in the
+   top-right corner of the home screen to lock it dark, lock it light, or return to
+   system-follow.
 
 ### 3.2 Calibration — automatic, nothing to do
 
@@ -112,11 +117,18 @@ give "forward" — `docs/adr/0004-automatic-calibration.md`). What that means in
 
 ### 3.3 Ride
 
-- **Live display mode:** the screen stays on and shows your two chosen dimensions as
-  huge bars. The thin black ticks are your **session maxima** — they never move back
-  during the ride. The bar shifts amber/red as you approach your own max. **Lean shows
-  "—" below 18 km/h** — that's intentional (the bar-mounted phone turns with the bars
-  at low speed, the reading would be garbage).
+- **Live display mode:** the screen stays on and shows your two chosen dimensions.
+  Each dimension fills its half of the screen: a large numeral in the dimension's
+  identity color, and below it an **LED-strip bar** — solid color-blocks, no gaps,
+  like a rev counter.
+
+  - The **◆ watermark** marks your session maximum for that dimension; it never
+    retreats during the ride.
+  - As you approach your own max the bar shifts **amber** (past 70 %) then **red**
+    (past 90 %) — a visual warning without any sound or vibration.
+  - **Lean shows "—" below 18 km/h** — intentional (the bar-mounted phone turns
+    with the bars at low speed; the reading would be garbage above ~15°).
+
 - **Background mode:** the screen is off, logging continues (foreground service +
   wakelock). Opening the app during the ride shows the live display.
 - Touching the bars does nothing while moving; only STOP is active.

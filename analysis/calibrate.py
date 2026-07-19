@@ -48,15 +48,28 @@ EVENT_MIN_H = 0.8            # m/s² minimum horizontal specific force
 G = 9.80665
 
 
+def _imu_rows_to_array(rows: list) -> np.ndarray:
+    """Schema v2: v0–b2 are float32 bit patterns stored as INTEGER. None → nan."""
+    import struct
+    n = len(rows)
+    out = np.empty((n, 7), dtype=np.float64)
+    for i, row in enumerate(rows):
+        out[i, 0] = row[0]
+        for j in range(1, 7):
+            v = row[j]
+            out[i, j] = float('nan') if v is None else struct.unpack('<f', struct.pack('<i', int(v)))[0]
+    return out
+
+
 def imu_window(db: sqlite3.Connection, stream: int, t0: int, t1: int) -> np.ndarray:
     """Bias-corrected sensor samples in [t0, t1] as (n, 4) array: t_ns, x, y, z."""
     rows = db.execute(
         "SELECT t_ns, v0, v1, v2, b0, b1, b2 FROM imu "
         "WHERE stream=? AND t_ns BETWEEN ? AND ? ORDER BY t_ns",
-        (stream, int(t0), int(t1)))
-    a = np.array(rows.fetchall(), dtype=np.float64)
-    if a.size == 0:
+        (stream, int(t0), int(t1))).fetchall()
+    if not rows:
         return np.empty((0, 4))
+    a = _imu_rows_to_array(rows)
     v, b = a[:, 1:4], np.nan_to_num(a[:, 4:7])
     return np.column_stack([a[:, 0], v - b])
 

@@ -54,10 +54,26 @@ TAU_CORR = 2.0        # s  — complementary-filter correction time constant
 BETA = 0.05           # Madgwick gain
 
 
+def _imu_rows_to_array(rows: list) -> np.ndarray:
+    """Schema v2: v0–b2 are float32 bit patterns stored as INTEGER. None → nan."""
+    import struct
+    n = len(rows)
+    out = np.empty((n, 7), dtype=np.float64)
+    for i, row in enumerate(rows):
+        out[i, 0] = row[0]
+        for j in range(1, 7):
+            v = row[j]
+            out[i, j] = float('nan') if v is None else struct.unpack('<f', struct.pack('<i', int(v)))[0]
+    return out
+
+
 def load_stream(db: sqlite3.Connection, stream: int) -> np.ndarray:
-    a = np.array(db.execute(
+    rows = db.execute(
         "SELECT t_ns, v0, v1, v2, b0, b1, b2 FROM imu WHERE stream=? ORDER BY t_ns",
-        (stream,)).fetchall(), dtype=np.float64)
+        (stream,)).fetchall()
+    if not rows:
+        return np.empty((0, 7))
+    a = _imu_rows_to_array(rows)
     if stream in (0, 1, 2):
         return np.column_stack([a[:, 0], a[:, 1:4] - np.nan_to_num(a[:, 4:7])])
     return a  # rotvec: v0-v2 = x,y,z, b0 = w

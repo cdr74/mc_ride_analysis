@@ -40,15 +40,15 @@ class RideStoreTest {
             assertTrue(c.moveToFirst())
             assertEquals(1000L, c.getLong(0))
             assertEquals(Config.STREAM_ACCEL, c.getInt(1))
-            assertEquals(1.0, c.getDouble(2), 1e-6)
-            assertEquals(3.0, c.getDouble(4), 1e-6)
-            assertEquals(0.1, c.getDouble(5), 1e-6) // uncalibrated bias -> b0
-            assertEquals(0.3, c.getDouble(7), 1e-6)
+            assertEquals(1.0, Float.fromBits(c.getInt(2)).toDouble(), 1e-6)
+            assertEquals(3.0, Float.fromBits(c.getInt(4)).toDouble(), 1e-6)
+            assertEquals(0.1, Float.fromBits(c.getInt(5)).toDouble(), 1e-6) // uncalibrated bias -> b0
+            assertEquals(0.3, Float.fromBits(c.getInt(7)).toDouble(), 1e-6)
             assertEquals(3, c.getInt(8))
 
             assertTrue(c.moveToNext())
             assertEquals(Config.STREAM_BARO, c.getInt(1))
-            assertEquals(1013.25, c.getDouble(2), 1e-4)
+            assertEquals(1013.25, Float.fromBits(c.getInt(2)).toDouble(), 1e-4)
             assertTrue(c.isNull(3)) // baro has no v1/v2/bias
             assertTrue(c.isNull(5))
         }
@@ -72,8 +72,8 @@ class RideStoreTest {
         store.flushOnce()
         store.query("SELECT v0, v1, v2, b0, b1, b2 FROM imu").use { c ->
             assertTrue(c.moveToFirst())
-            assertEquals(0.9, c.getDouble(3), 1e-6)
-            assertEquals(0.05, c.getDouble(4), 1e-6)
+            assertEquals(0.9, Float.fromBits(c.getInt(3)).toDouble(), 1e-6)
+            assertEquals(0.05, Float.fromBits(c.getInt(4)).toDouble(), 1e-6)
             assertTrue(c.isNull(5))
         }
     }

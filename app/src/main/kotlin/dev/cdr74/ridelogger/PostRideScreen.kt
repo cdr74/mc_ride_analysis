@@ -2,6 +2,7 @@ package dev.cdr74.ridelogger
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -26,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -67,20 +70,21 @@ fun PostRideScreen(file: File, onClose: () -> Unit) {
         }
     }
 
+    val colors = LocalRideColors.current
     val a = analysis
     when {
         a == null -> Column(
-            Modifier.fillMaxSize().padding(24.dp),
+            Modifier.fillMaxSize().background(colors.background).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
             CircularProgressIndicator()
             Spacer(Modifier.height(16.dp))
-            Text("computing… %.0f %%".format(progress * 100), color = Ui.Muted)
+            Text("computing… %.0f %%".format(progress * 100), color = colors.textMuted)
             Text(
                 "first open of a ride replays all raw data once, then it's cached",
                 style = MaterialTheme.typography.bodySmall,
-                color = Ui.Muted,
+                color = colors.textMuted,
             )
         }
 
@@ -110,19 +114,21 @@ private fun Summary(
     onOpen: (Dimension) -> Unit,
     onClose: () -> Unit,
 ) {
+    val colors = LocalRideColors.current
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        Modifier.fillMaxSize().background(colors.background).verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onClose) { Text("←", fontSize = 22.sp) }
-            Text(rideTitle(file), style = MaterialTheme.typography.titleLarge)
+            TextButton(onClick = onClose) { Text("←", fontSize = 22.sp, color = colors.textPrimary) }
+            Text(rideTitle(file), style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
         }
         Text(
             "%.1f km · %s · avg %.0f km/h moving".format(
                 a.distanceKm, formatDur(a.durationS), a.avgMovingKmh,
             ),
             style = MaterialTheme.typography.titleMedium,
+            color = colors.textPrimary,
         )
         if (!a.calibrated) {
             Text(
@@ -130,7 +136,7 @@ private fun Summary(
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        HorizontalDivider()
+        HorizontalDivider(color = colors.divider)
 
         DimensionRow(Dimension.SPEED, a.trace(Dimension.SPEED), "max %.0f km/h".format(a.maxSpeedKmh), onOpen)
         for (dim in listOf(Dimension.LEAN, Dimension.ACCEL, Dimension.PITCH, Dimension.ELEVATION)) {
@@ -146,7 +152,7 @@ private fun Summary(
         Text(
             "tap a dimension for the trace ▸",
             style = MaterialTheme.typography.bodySmall,
-            color = Ui.Muted,
+            color = colors.textMuted,
         )
     }
 }
@@ -193,15 +199,16 @@ private fun DimensionRow(
     statsLabel: String,
     onOpen: (Dimension) -> Unit,
 ) {
+    val colors = LocalRideColors.current
     Card(Modifier.fillMaxWidth().clickable(enabled = trace != null) { onOpen(dim) }) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(dim.label, fontWeight = FontWeight.SemiBold)
-                Text(statsLabel, color = Ui.Muted)
+                Text(dim.label, fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
+                Text(statsLabel, color = colors.textMuted)
             }
             if (trace != null && !dim.freeRange) {
                 val stats = validStats(trace)
-                WatermarkBar(
+                SegmentBar(
                     dim,
                     LiveDim(
                         value = null,
@@ -226,12 +233,11 @@ private fun DimensionDetail(
     if (trace == null || trace.t.isEmpty()) {
         onBack(); return
     }
+    val colors = LocalRideColors.current
     val tEnd = trace.t.last()
     var win by remember { mutableStateOf(0f..tEnd) }
     var readoutIdx by remember { mutableStateOf<Int?>(null) }
 
-    // extremes for the jump list; edge-origin dimensions (speed) only have a max —
-    // "0 km/h" is not an extreme worth listing (0.3.1 review)
     val extremes = remember(trace) {
         var mnI = -1
         var mxI = -1
@@ -244,10 +250,13 @@ private fun DimensionDetail(
         listOfNotNull(mnI.takeIf { it >= 0 && (dim.centerOrigin || dim.freeRange) }, mxI.takeIf { it >= 0 })
     }
 
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(
+        Modifier.fillMaxSize().background(colors.background).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("←", fontSize = 22.sp) }
-            Text("${dim.label} · $title", style = MaterialTheme.typography.titleMedium)
+            TextButton(onClick = onBack) { Text("←", fontSize = 22.sp, color = colors.textPrimary) }
+            Text("${dim.label} · $title", style = MaterialTheme.typography.titleMedium, color = colors.textPrimary)
         }
 
         val idx = readoutIdx
@@ -257,7 +266,7 @@ private fun DimensionDetail(
             } else {
                 "pinch = zoom · drag = pan · tap = value · ${formatSpan(win.endInclusive - win.start)} shown"
             },
-            color = Ui.Muted,
+            color = colors.textMuted,
         )
 
         TraceCanvas(
@@ -270,8 +279,8 @@ private fun DimensionDetail(
             modifier = Modifier.fillMaxWidth().weight(1f),
         )
 
-        HorizontalDivider()
-        Text("EXTREMES", style = MaterialTheme.typography.labelMedium, color = Ui.Muted)
+        HorizontalDivider(color = colors.divider)
+        Text("EXTREMES", style = MaterialTheme.typography.labelMedium, color = colors.textMuted)
         extremes.forEach { i ->
             Row(
                 Modifier
@@ -284,8 +293,8 @@ private fun DimensionDetail(
                     .padding(vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text("%.1f %s".format(trace.v[i], dim.unit), fontWeight = FontWeight.SemiBold)
-                Text("@ ${formatDur(trace.t[i])}", color = Ui.Muted)
+                Text("%.1f %s".format(trace.v[i], dim.unit), fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
+                Text("@ ${formatDur(trace.t[i])}", color = colors.textMuted)
             }
         }
     }
@@ -302,10 +311,10 @@ private fun TraceCanvas(
     modifier: Modifier = Modifier,
 ) {
     val tEnd = trace.t.last()
-    // pointerInput blocks capture their closures ONCE (they restart only when the key
-    // changes) — reading `win` directly gave every gesture the stale initial window,
-    // which is why zoom "did nothing" (0.3.1 review). Read through rememberUpdatedState.
-    val winNow = androidx.compose.runtime.rememberUpdatedState(win)
+    val winNow = rememberUpdatedState(win)
+    val colors = LocalRideColors.current
+    // Capture colors as stable references for use inside Canvas draw lambdas
+    val colorsNow = rememberUpdatedState(colors)
 
     Canvas(
         modifier
@@ -326,7 +335,6 @@ private fun TraceCanvas(
                     val cur = winNow.value
                     val span = cur.endInclusive - cur.start
                     val t = cur.start + pos.x / size.width * span
-                    // trace.t is (nearly) uniform — binary search for the nearest sample
                     var lo = 0
                     var hi = trace.t.size - 1
                     while (hi - lo > 1) {
@@ -340,11 +348,8 @@ private fun TraceCanvas(
         val w = size.width
         val h = size.height
         val span = (win.endInclusive - win.start).coerceAtLeast(1e-3f)
+        val c = colorsNow.value
 
-        // y-range from the visible window, never tighter than the dimension's calm
-        // floor — ±2° of real steering wander on an autoscaled ±5 read as "twitchy
-        // flopping" in the 0.3.3 field review. Free-range dimensions (elevation)
-        // follow the window's min..max instead of an origin.
         var lo = 0
         while (lo < trace.t.size && trace.t[lo] < win.start) lo++
         var hi = lo
@@ -368,9 +373,7 @@ private fun TraceCanvas(
         }
         if (dim.centerOrigin) yMin = -yMax
         if (dim.freeRange) {
-            if (yMin > yMax) { // no valid samples in the window
-                yMin = 0f; yMax = dim.calmFloor
-            }
+            if (yMin > yMax) { yMin = 0f; yMax = dim.calmFloor }
             val mid = (yMin + yMax) / 2f
             val half = max(yMax - yMin, dim.calmFloor) / 2f * 1.1f
             yMin = mid - half
@@ -379,20 +382,17 @@ private fun TraceCanvas(
         fun px(t: Float) = (t - win.start) / span * w
         fun py(v: Float) = h - (v - yMin) / (yMax - yMin) * h
 
-        // horizontal gridlines at the dimension's natural step (e.g. every 5° lean),
-        // step doubled while lines would land closer than ~24 px; sparse y labels on
-        // every second line — readable without clutter (0.3.1 review)
         var step = dim.gridStep
         while ((yMax - yMin) / step * 24f > h && step < yMax) step *= 2
         val labelPaint = android.graphics.Paint().apply {
             isAntiAlias = true
             textSize = 11.sp.toPx()
-            color = android.graphics.Color.rgb(0x64, 0x74, 0x8B) // Ui.Muted
+            color = c.textMuted.toArgb()
         }
         var gv = kotlin.math.ceil(yMin / step) * step
         while (gv <= yMax + 1e-3f) {
             val y = py(gv)
-            if (abs(gv) > 1e-3f || !dim.centerOrigin) drawLine(Ui.Track, Offset(0f, y), Offset(w, y))
+            if (abs(gv) > 1e-3f || !dim.centerOrigin) drawLine(c.track, Offset(0f, y), Offset(w, y))
             val labelled = (Math.round(gv / step) % 2 == 0)
             if (labelled && y > 14f && y < h - 10f) {
                 drawContext.canvas.nativeCanvas.drawText(
@@ -401,26 +401,23 @@ private fun TraceCanvas(
             }
             gv += step
         }
-        // pronounced zero line for center-origin dimensions
         if (dim.centerOrigin) {
-            drawLine(Ui.Ink, Offset(0f, py(0f)), Offset(w, py(0f)), strokeWidth = 2f)
+            drawLine(c.textPrimary, Offset(0f, py(0f)), Offset(w, py(0f)), strokeWidth = 2f)
         }
 
-        // vertical time gridlines at an adaptive natural step, labels along the bottom
-        // (the S3b sketch always had a time axis — implemented in 0.3.4)
         val minTickPx = 72.dp.toPx()
         val tickStep = TIME_TICK_STEPS_S.firstOrNull { it / span * w >= minTickPx }
             ?: TIME_TICK_STEPS_S.last()
         val tickPaint = android.graphics.Paint().apply {
             isAntiAlias = true
             textSize = 11.sp.toPx()
-            color = android.graphics.Color.rgb(0x64, 0x74, 0x8B) // Ui.Muted
+            color = c.textMuted.toArgb()
             textAlign = android.graphics.Paint.Align.CENTER
         }
         var gt = kotlin.math.ceil(win.start / tickStep) * tickStep
         while (gt <= win.endInclusive) {
             val x = px(gt)
-            drawLine(Ui.Track, Offset(x, 0f), Offset(x, h - 4f))
+            drawLine(c.track, Offset(x, 0f), Offset(x, h - 4f))
             if (x > 24f && x < w - 24f) {
                 val sec = gt.toInt()
                 val label = if (tEnd >= 3600f) {
@@ -433,7 +430,6 @@ private fun TraceCanvas(
             gt += tickStep
         }
 
-        // trace polyline with NaN gaps, stride-decimated to ~2 points per pixel
         val visible = hi - lo
         val stride = max(1, visible / (2 * w.toInt().coerceAtLeast(1)))
         val path = Path()
@@ -451,18 +447,16 @@ private fun TraceCanvas(
             }
             i += stride
         }
-        drawPath(path, Ui.Accent, style = Stroke(width = 3f))
+        drawPath(path, dim.color, style = Stroke(width = 3f))
 
-        // readout marker
         if (readoutIdx != null && readoutIdx in lo until hi && !trace.v[readoutIdx].isNaN()) {
             val x = px(trace.t[readoutIdx])
-            drawLine(Ui.Muted, Offset(x, 0f), Offset(x, h))
-            drawCircle(Ui.Accent, radius = 8f, center = Offset(x, py(trace.v[readoutIdx])))
+            drawLine(c.textMuted, Offset(x, 0f), Offset(x, h))
+            drawCircle(dim.color, radius = 8f, center = Offset(x, py(trace.v[readoutIdx])))
             drawCircle(Color.White, radius = 4f, center = Offset(x, py(trace.v[readoutIdx])))
         }
 
-        // window position indicator (thin strip at the bottom)
-        drawRect(Ui.Track, Offset(0f, h - 4f), Size(w, 4f))
-        drawRect(Ui.Accent, Offset(win.start / tEnd * w, h - 4f), Size(span / tEnd * w, 4f))
+        drawRect(c.track, Offset(0f, h - 4f), Size(w, 4f))
+        drawRect(dim.color, Offset(win.start / tEnd * w, h - 4f), Size(span / tEnd * w, 4f))
     }
 }

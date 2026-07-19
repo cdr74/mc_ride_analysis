@@ -133,18 +133,25 @@ timestamp reasoning and some OEMs misbehave. Continuous delivery + ring buffer i
 - Writer coroutine drains the ring buffer and commits a transaction every ≤ 500 ms or
   ≥ 4096 rows, whichever first. Target sustained write load: ~1500 rows/s ≈ trivial for SQLite.
 
-### 5.2 Schema (schema_version = 1)
+### 5.2 Schema (schema_version = 2)
+
+v2 change (2026-07-19): `imu` v0–v2/b0–b2 changed from `REAL` to `INTEGER` storing float32
+bit patterns (`Float.toBits()`). Sensor values are already float32 from `SensorEvent`; the
+previous float64 widening was pure overhead. Read back with `Float.fromBits(cursor.getInt())`.
+GPS/GNSS tables unchanged. Saves ~40 % on the dominant table. See `analysis/schema.md` for
+the cross-repo reading convention.
 
 ```sql
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
 -- one row per IMU event; stream discriminates sensor
+-- v0-v2, b0-b2: float32 bit patterns as INTEGER (v2). Float.fromBits(cursor.getInt(col)).
 CREATE TABLE imu (
   t_ns   INTEGER NOT NULL,          -- SensorEvent.timestamp (elapsedRealtimeNanos)
   stream INTEGER NOT NULL,          -- 0=accel 1=gyro 2=mag 3=rotvec 4=baro
-  v0 REAL NOT NULL, v1 REAL, v2 REAL,
-  b0 REAL, b1 REAL, b2 REAL,        -- bias fields of *_UNCALIBRATED; NULL otherwise
-  acc INTEGER                        -- SensorEvent.accuracy
+  v0 INTEGER NOT NULL, v1 INTEGER, v2 INTEGER,
+  b0 INTEGER, b1 INTEGER, b2 INTEGER,  -- bias fields of *_UNCALIBRATED; NULL otherwise
+  acc INTEGER                          -- SensorEvent.accuracy
 );
 CREATE INDEX idx_imu ON imu(stream, t_ns);
 
@@ -174,7 +181,7 @@ plus `b0` = w (scalar), `b1` = estimated heading accuracy.
 
 | key | example |
 |---|---|
-| `schema_version` | `1` |
+| `schema_version` | `2` |
 | `app_version` | `0.3.0 (git 1a2b3c4)` |
 | `device` | `Google Pixel 8, Android 15` |
 | `ride_start_utc_ms` | `1752230400123` |

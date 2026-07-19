@@ -39,10 +39,15 @@ confidence.
 1. Mount the phone on the bars (a **damped mount** matters — engine vibration is the
    enemy), start the app, stand under open sky.
 2. Pick up to **two live bars** for the ride (lean, accel/brake, pitch, speed — or
-   none and ride with the screen off).
-3. When the green **START** appears, the app is ready. Ride. Tap **STOP** at the end.
+   none and ride with the screen off). Each dimension has its own color: lean is
+   orange, speed blue, accel/brake green/red, pitch teal.
+3. When the deep-green **START** appears, the app is ready. Ride. Tap **STOP** at
+   the end.
 4. The post-ride view opens by itself: distance, extremes, and a zoomable trace for
    every dimension — pinch into any corner of your ride.
+
+The app defaults to dark theme and follows your phone's system setting. Tap ☾/☀ on
+the home screen to override.
 
 **There is no calibration procedure.** The phone can sit on the mount at any angle;
 the phone→bike orientation is solved automatically from normal riding and remembered
@@ -76,10 +81,13 @@ troubleshooting — is **[USER.md](USER.md)**.
 2. **✅ Offline fusion** (`analysis/`) — calibration + lean estimation, validated on
    real rides; the causal live variant costs 0.35° RMS / 40 ms vs the offline
    reference. Pitch/wheelie validation still awaits real wheelie data.
-3. **✅ Ride display** (v0.4.x, spec in `docs/ui-mockup.md`) — live bars with session
-   high-watermarks, post-ride analysis in-app, zero interaction while moving. The
-   on-device estimator is a verified port of the offline reference (RMS 0.19° on a
-   real-ride fixture), field-reviewed and refined on real rides (ADR 0007/0008).
+3. **✅ Ride display** (v0.5.0, spec in `docs/ui-mockup.md`) — instrument-style UI:
+   LED-strip segment bars with per-dimension identity colors, dark/light theme
+   (follows system, manual ☾/☀ override), session high-watermarks, safety gradient
+   (identity → amber → red as you approach your own max), post-ride analysis in-app,
+   zero interaction while moving. The on-device estimator is a verified port of the
+   offline reference (RMS 0.19° on a real-ride fixture), field-reviewed and refined
+   on real rides (ADR 0007/0008).
 4. *Parked:* a minimal iOS logger writing the same ride-file format (wheelie data
    from a second bike).
 

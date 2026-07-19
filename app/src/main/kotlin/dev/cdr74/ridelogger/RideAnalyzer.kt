@@ -239,7 +239,7 @@ object RideAnalyzer {
                     "SELECT t_ns, v0 FROM imu WHERE stream=${Config.STREAM_BARO} ORDER BY t_ns",
                     null,
                 ).use { c ->
-                    while (c.moveToNext()) baro.add(c.getLong(0) to c.getFloat(1))
+                    while (c.moveToNext()) baro.add(c.getLong(0) to Float.fromBits(c.getInt(1)))
                 }
             }
             var bi = 0
@@ -261,10 +261,10 @@ object RideAnalyzer {
                             onBaro?.invoke(baro[bi].first, baro[bi].second)
                             bi++
                         }
-                        val bx = if (c.isNull(4)) 0f else c.getFloat(4)
-                        val by = if (c.isNull(5)) 0f else c.getFloat(5)
-                        val bz = if (c.isNull(6)) 0f else c.getFloat(6)
-                        onImu(stream, t, c.getFloat(1) - bx, c.getFloat(2) - by, c.getFloat(3) - bz)
+                        val bx = if (c.isNull(4)) 0f else Float.fromBits(c.getInt(4))
+                        val by = if (c.isNull(5)) 0f else Float.fromBits(c.getInt(5))
+                        val bz = if (c.isNull(6)) 0f else Float.fromBits(c.getInt(6))
+                        onImu(stream, t, Float.fromBits(c.getInt(1)) - bx, Float.fromBits(c.getInt(2)) - by, Float.fromBits(c.getInt(3)) - bz)
                         if (++rows % 100_000 == 0) {
                             checkActive()
                             onProgress(((t - bounds.first).toFloat() / spanNs).coerceIn(0f, 1f))

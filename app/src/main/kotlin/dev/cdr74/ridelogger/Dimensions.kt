@@ -1,5 +1,7 @@
 package dev.cdr74.ridelogger
 
+import androidx.compose.ui.graphics.Color
+
 /**
  * The four displayable ride dimensions (docs/ui-mockup.md S2). Every dimension renders
  * with the same bar grammar: a fill bar on a recessed track plus session high-watermark
@@ -24,12 +26,14 @@ enum class Dimension(
     val live: Boolean = true,
     /** Trace y-range follows the visible window's min..max instead of an origin. */
     val freeRange: Boolean = false,
+    /** Per-dimension identity color (Theme.kt DimColor). */
+    val color: Color = Color.Unspecified,
 ) {
-    LEAN("LEAN", "°", 45f, true, 5f, 15f),
-    ACCEL("ACCEL / BRAKE", "m/s²", 10f, true, 2f, 3f),
-    PITCH("PITCH", "°", 20f, true, 5f, 10f),
-    SPEED("SPEED", "km/h", 120f, false, 20f, 60f),
-    ELEVATION("ELEVATION", "m", 200f, false, 10f, 40f, live = false, freeRange = true),
+    LEAN("LEAN", "°", 45f, true, 5f, 15f, color = DimColor.Lean),
+    ACCEL("ACCEL / BRAKE", "m/s²", 10f, true, 2f, 3f, color = DimColor.Accel),
+    PITCH("PITCH", "°", 20f, true, 5f, 10f, color = DimColor.Pitch),
+    SPEED("SPEED", "km/h", 120f, false, 20f, 60f, color = DimColor.Speed),
+    ELEVATION("ELEVATION", "m", 200f, false, 10f, 40f, live = false, freeRange = true, color = DimColor.Elevation),
     ;
 
     companion object {

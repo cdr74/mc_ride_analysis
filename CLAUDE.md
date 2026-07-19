@@ -57,6 +57,12 @@ pitch channel has no offline reference; it is defined by `LeanEstimator.kt` +
 ADR 0007/0008 (bike-relative-to-road since 0.4.0, baro-derived grade subtracted) and
 guarded by the synthetic `LeanEstimatorTest`. Outstanding: pitch wheelie-band
 validation (needs supermoto wheelie data; iOS logger for it is parked).
+**v0.5.0 (2026-07-19)** implements the Instrument UI redesign from `docs/ui-mockup.md`:
+dark/light/system theme (`RideLoggerTheme`, `ThemeOverride`), per-dimension identity
+colors (`DimColor`), LED-strip segment bars (`SegmentBar`), safety gradient on segments
+approaching session max, full-width sharp-edge START/STOP buttons, theme-toggle on home
+screen, colored dot leading icons on slot-picker chips, and vector app icon. Also bumps
+schema to v2 (float32 bit-pattern INTEGER storage, ~40 % imu size reduction). See ADR 0009.
 
 ## Non-negotiable data-integrity rules
 
@@ -95,6 +101,7 @@ These are the reasons this app exists. Violating any of them makes collected rid
 ./gradlew installDebug           # install on connected device
 ./gradlew lint testDebugUnitTest # static checks + unit tests
 adb shell dumpsys sensorservice  # inspect delivered sensor rates on device
+git config core.hooksPath .githooks  # install pre-push docs-reminder hook
 ```
 
 **Distribution:** users install the prebuilt APK from GitHub releases, they never build.
